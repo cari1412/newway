@@ -2,7 +2,10 @@ import { useLaunchParams, miniApp, useSignal } from '@telegram-apps/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
 import { Navigate, Route, Routes, HashRouter } from 'react-router-dom';
 
-import { routes } from '@/navigation/routes.tsx';
+// Import new components
+import { CountryList } from '../pages/CountryList/CountryList';
+import { CountryDetails } from '../pages/CountryDetails/CountryDetails';
+import { PlanDetails } from '../pages/PlanDetails/PlanDetails';
 
 export function App() {
   const lp = useLaunchParams();
@@ -15,8 +18,10 @@ export function App() {
     >
       <HashRouter>
         <Routes>
-          {routes.map((route) => <Route key={route.path} {...route} />)}
-          <Route path="*" element={<Navigate to="/"/>}/>
+          <Route path="/" element={<CountryList />} />
+          <Route path="/country/:countryId" element={<CountryDetails />} />
+          <Route path="/plan/:planId" element={<PlanDetails />} />
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </HashRouter>
     </AppRoot>
