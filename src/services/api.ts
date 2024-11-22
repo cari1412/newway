@@ -1,6 +1,32 @@
 import axios from 'axios';
 
-const API_URL = 'https://api.sexystyle.site'; // Replace with your VPS address
+const API_URL = 'https://api.sexystyle.site';
+
+const apiClient = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      console.error('API Error:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+      throw new Error(error.response.data?.message || 'API Error');
+    } else if (error.request) {
+      console.error('Network Error:', error.message);
+      throw new Error('Ошибка сети. Пожалуйста, проверьте подключение.');
+    } else {
+      console.error('Error:', error.message);
+      throw error;
+    }
+  }
+);
 
 export interface Package {
   packageCode: string;
@@ -43,54 +69,62 @@ export interface OrderPackageInfo {
 }
 
 interface APIResponse<T> {
+  status: string;
+  timestamp: string;
   success: boolean;
   errorCode: string | null;
   errorMsg: string | null;
-  obj: T;
-}
-
-interface PackageListResponse {
-  packageList: Package[];
+  data: T;
 }
 
 export const api = {
   async getPackages(location?: string): Promise<Package[]> {
-    const response = await axios.post<APIResponse<PackageListResponse>>(`${API_URL}/api/v1/open/package/list`, {
-      locationCode: location || '',
-      type: 'BASE',
-      packageCode: '',
-      iccid: ''
-    });
-    
-    if (!response.data.success) {
-      throw new Error(response.data.errorMsg || 'Failed to fetch packages');
+    try {
+      const response = await apiClient.get<APIResponse<Package[]>>('/api/packages', {
+        params: { location }
+      });
+      
+      if (!response.data.success) {
+        throw new Error(response.data.errorMsg || 'Failed to fetch packages');
+      }
+      
+      return response.data.data;
+    } catch (error) {
+      console.error('Failed to fetch packages:', error);
+      throw error;
     }
-    
-    return response.data.obj.packageList;
   },
 
   async createOrder(transactionId: string, packages: OrderPackageInfo[]): Promise<Order> {
-    const response = await axios.post<APIResponse<Order>>(`${API_URL}/api/v1/open/esim/order`, {
-      transactionId,
-      packageInfoList: packages
-    });
-    
-    if (!response.data.success) {
-      throw new Error(response.data.errorMsg || 'Failed to create order');
+    try {
+      const response = await apiClient.post<APIResponse<Order>>('/api/orders', {
+        transactionId,
+        packages
+      });
+      
+      if (!response.data.success) {
+        throw new Error(response.data.errorMsg || 'Failed to create order');
+      }
+      
+      return response.data.data;
+    } catch (error) {
+      console.error('Failed to create order:', error);
+      throw error;
     }
-    
-    return response.data.obj;
   },
 
   async getOrderStatus(orderNo: string): Promise<string> {
-    const response = await axios.post<APIResponse<{ status: string }>>(`${API_URL}/api/v1/open/esim/query`, {
-      orderNo
-    });
-    
-    if (!response.data.success) {
-      throw new Error(response.data.errorMsg || 'Failed to get order status');
+    try {
+      const response = await apiClient.get<APIResponse<{ status: string }>>(`/api/orders/${orderNo}`);
+      
+      if (!response.data.success) {
+        throw new Error(response.data.errorMsg || 'Failed to get order status');
+      }
+      
+      return response.data.data.status;
+    } catch (error) {
+      console.error('Failed to get order status:', error);
+      throw error;
     }
-    
-    return response.data.obj.status;
   }
 };
