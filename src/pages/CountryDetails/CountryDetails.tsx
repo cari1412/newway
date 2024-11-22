@@ -1,44 +1,54 @@
-import { Section, Cell, List } from '@telegram-apps/telegram-ui';
+import { Section, Cell, List, Spinner } from '@telegram-apps/telegram-ui';
 import type { FC } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { Page } from '@/components/Page';
-
-interface Plan {
-  id: string;
-  countryId: string;
-  name: string;
-  data: string;
-  validity: string;
-  price: number;
-  description: string;
-}
+import { api, type Package } from '@/services/api';
 
 export const CountryDetails: FC = () => {
   const { countryId } = useParams();
   const navigate = useNavigate();
+  const [plans, setPlans] = useState<Package[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const plans: Plan[] = [
-    {
-      id: 'us-1',
-      countryId: 'us',
-      name: 'Базовый',
-      data: '5 GB',
-      validity: '30 дней',
-      price: 10,
-      description: 'Интернет для базового использования'
-    },
-    {
-      id: 'us-2',
-      countryId: 'us',
-      name: 'Стандарт',
-      data: '10 GB',
-      validity: '30 дней',
-      price: 15,
-      description: 'Оптимальный вариант для путешествий'
-    }
-  ];
+  useEffect(() => {
+    const loadPlans = async () => {
+      if (!countryId) return;
 
-  const countryPlans = plans.filter(plan => plan.countryId === countryId);
+      try {
+        const packages = await api.getPackages(countryId);
+        setPlans(packages);
+      } catch (err) {
+        setError('Ошибка загрузки тарифов');
+        console.error('Failed to load plans:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPlans();
+  }, [countryId]);
+
+   if (loading) {
+    return (
+      <Page>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+          <Spinner size="m" />
+        </div>
+      </Page>
+    );
+  }
+
+  if (error) {
+    return (
+      <Page>
+        <Section header="Ошибка">
+          <Cell>{error}</Cell>
+        </Section>
+      </Page>
+    );
+  }
 
   return (
     <Page>
@@ -47,7 +57,7 @@ export const CountryDetails: FC = () => {
           header="Доступные тарифы"
           footer="Выберите тариф для просмотра подробной информации"
         >
-          {countryPlans.map((plan) => (
+          {plans.map((plan) => (
             <Cell
               key={plan.id}
               onClick={() => navigate(`/plan/${plan.id}`)}
