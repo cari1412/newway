@@ -1,9 +1,17 @@
 import { Section, Cell, List, Spinner } from '@telegram-apps/telegram-ui';
-import type { FC } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
 import { Page } from '@/components/Page';
 import { api, type Package } from '@/services/api';
+
+const formatBytes = (bytes: number) => {
+  const GB = bytes / (1024 * 1024 * 1024);
+  return `${GB} GB`;
+};
+
+const formatPrice = (price: number) => {
+  return `${(price / 10000).toFixed(2)}$`;
+};
 
 export const CountryDetails: FC = () => {
   const { countryId } = useParams();
@@ -30,7 +38,7 @@ export const CountryDetails: FC = () => {
     loadPlans();
   }, [countryId]);
 
-   if (loading) {
+  if (loading) {
     return (
       <Page>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
@@ -59,10 +67,10 @@ export const CountryDetails: FC = () => {
         >
           {plans.map((plan) => (
             <Cell
-              key={plan.id}
-              onClick={() => navigate(`/plan/${plan.id}`)}
-              subtitle={`${plan.data} • ${plan.validity}`}
-              after={`${plan.price}$`}
+              key={plan.packageCode}
+              onClick={() => navigate(`/plan/${plan.packageCode}`)}
+              subtitle={`${formatBytes(plan.volume)} • ${plan.duration} ${plan.durationUnit}`}
+              after={formatPrice(plan.price)}
             >
               {plan.name}
             </Cell>

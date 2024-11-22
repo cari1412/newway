@@ -1,10 +1,50 @@
 import { Section, Cell, List, Spinner } from '@telegram-apps/telegram-ui';
-import type { FC } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
 import { Page } from '@/components/Page';
-import { api, type Country } from '@/services/api';
-import { getCountryFlag, getCountryName } from '@/utils/countries';
+import { api, type Package } from '@/services/api';
+
+interface Country {
+  id: string;
+  name: string;
+  flag: string;
+  plansCount: number;
+  startingPrice: number;
+}
+
+const parseLocationToCountry = (packages: Package[]): Country[] => {
+  const countryMap = new Map<string, Country>();
+
+  packages.forEach(pkg => {
+    // Split location string in case it contains multiple countries
+    const locations = pkg.location.split(',');
+    
+    locations.forEach(location => {
+      const cleanLocation = location.trim();
+      if (!cleanLocation) return;
+
+      if (!countryMap.has(cleanLocation)) {
+        const locationInfo = pkg.locationNetworkList.find(l => 
+          l.locationName.toLowerCase().includes(cleanLocation.toLowerCase())
+        );
+
+        countryMap.set(cleanLocation, {
+          id: cleanLocation,
+          name: locationInfo?.locationName || cleanLocation,
+          flag: locationInfo?.locationLogo || '🌍',
+          plansCount: 1,
+          startingPrice: pkg.price
+        });
+      } else {
+        const country = countryMap.get(cleanLocation)!;
+        country.plansCount++;
+        country.startingPrice = Math.min(country.startingPrice, pkg.price);
+      }
+    });
+  });
+
+  return Array.from(countryMap.values());
+};
 
 export const CountryList: FC = () => {
   const navigate = useNavigate();
@@ -16,25 +56,8 @@ export const CountryList: FC = () => {
     const loadCountries = async () => {
       try {
         const packages = await api.getPackages();
-        const countriesMap = new Map<string, Country>();
-
-        packages.forEach(pkg => {
-          if (!countriesMap.has(pkg.countryId)) {
-            countriesMap.set(pkg.countryId, {
-              id: pkg.countryId,
-              name: getCountryName(pkg.countryId),
-              flag: getCountryFlag(pkg.countryId),
-              plansCount: 1,
-              startingPrice: pkg.price
-            });
-          } else {
-            const country = countriesMap.get(pkg.countryId)!;
-            country.plansCount++;
-            country.startingPrice = Math.min(country.startingPrice, pkg.price);
-          }
-        });
-
-        setCountries(Array.from(countriesMap.values()));
+        const countriesList = parseLocationToCountry(packages);
+        setCountries(countriesList);
       } catch (err) {
         setError('Ошибка загрузки данных');
         console.error('Failed to load countries:', err);
@@ -50,7 +73,7 @@ export const CountryList: FC = () => {
     return (
       <Page>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
-          <Spinner size = 'm' />
+          <Spinner size="m" />
         </div>
       </Page>
     );
@@ -66,6 +89,8 @@ export const CountryList: FC = () => {
     );
   }
 
+  const formatPrice = (price: number) => `${(price / 10000).toFixed(2)}$`;
+
   return (
     <Page back={false}>
       <List>
@@ -78,7 +103,7 @@ export const CountryList: FC = () => {
               key={country.id}
               onClick={() => navigate(`/country/${country.id}`)}
               before={<span style={{ fontSize: '24px' }}>{country.flag}</span>}
-              subtitle={`От ${country.startingPrice}$ • ${country.plansCount} тарифов`}
+              subtitle={`От ${formatPrice(country.startingPrice)} • ${country.plansCount} тарифов`}
             >
               {country.name}
             </Cell>

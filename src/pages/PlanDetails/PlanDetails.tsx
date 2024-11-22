@@ -1,132 +1,142 @@
-import { Section, Cell, List, Button } from '@telegram-apps/telegram-ui';
-import type { FC } from 'react';
+import { Section, Cell, List, Button, Spinner } from '@telegram-apps/telegram-ui';
+import { FC, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Page } from '@/components/Page';
+import { api, type Package } from '@/services/api';
 
-interface PlanFeature {
-  icon: string;
-  title: string;
-  description: string;
-}
+const formatBytes = (bytes: number) => {
+  const GB = bytes / (1024 * 1024 * 1024);
+  return `${GB} GB`;
+};
 
-interface PlanDetails {
-  id: string;
-  name: string;
-  countryName: string;
-  flag: string;
-  price: number;
-  data: string;
-  validity: string;
-  description: string;
-  features: PlanFeature[];
-  coverageAreas: string[];
-  instructions: string[];
-}
+const formatPrice = (price: number) => {
+  return `${(price / 10000).toFixed(2)}$`;
+};
 
 export const PlanDetails: FC = () => {
   const { planId } = useParams();
+  const [plan, setPlan] = useState<Package | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Пример данных, в реальном приложении должны загружаться с бэкенда
-  const plan: PlanDetails = {
-    id: 'us-1',
-    name: 'Премиум США',
-    countryName: 'США',
-    flag: '🇺🇸',
-    price: 29.99,
-    data: '10 GB',
-    validity: '30 дней',
-    description: 'Высокоскоростной интернет для комфортного путешествия по США с поддержкой 4G/5G сетей.',
-    features: [
-      {
-        icon: '📱',
-        title: 'Мгновенная активация',
-        description: 'Активируйте eSIM сразу после покупки'
-      },
-      {
-        icon: '🌐',
-        title: '4G/5G покрытие',
-        description: 'Поддержка высокоскоростных сетей'
-      },
-      {
-        icon: '🔄',
-        title: 'Автопродление',
-        description: 'Возможность автоматического продления тарифа'
+  useEffect(() => {
+    const loadPlan = async () => {
+      if (!planId) return;
+
+      try {
+        const packages = await api.getPackages();
+        const matchingPlan = packages.find((p: Package) => p.packageCode === planId);
+        
+        if (matchingPlan) {
+          setPlan(matchingPlan);
+        } else {
+          setError('План не найден');
+        }
+      } catch (err) {
+        setError('Ошибка загрузки данных');
+        console.error('Failed to load plan:', err);
+      } finally {
+        setLoading(false);
       }
-    ],
-    coverageAreas: [
-      'Все 50 штатов США',
-      'Аляска',
-      'Гавайи',
-      'Пуэрто-Рико'
-    ],
-    instructions: [
-      'Отсканируйте QR-код после покупки',
-      'Установите eSIM профиль',
-      'Включите передачу данных',
-      'Готово к использованию!'
-    ]
+    };
+
+    loadPlan();
+  }, [planId]);
+
+  const handlePurchase = async () => {
+    if (!plan) return;
+    
+    try {
+      const transactionId = `purchase-${Date.now()}`;
+      await api.createOrder(transactionId, [{
+        packageCode: plan.packageCode,
+        count: 1,
+        price: plan.price
+      }]);
+      // Handle successful purchase (e.g. show success message, redirect)
+    } catch (err) {
+      console.error('Purchase failed:', err);
+      // Handle error
+    }
   };
 
-  const handlePurchase = () => {
-    // Здесь будет логика покупки тарифа
-    console.log('Покупка тарифа:', planId);
-  };
+  if (loading) {
+    return (
+      <Page>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+          <Spinner size="m" />
+        </div>
+      </Page>
+    );
+  }
+
+  if (error || !plan) {
+    return (
+      <Page>
+        <Section header="Ошибка">
+          <Cell>{error || 'План не найден'}</Cell>
+        </Section>
+      </Page>
+    );
+  }
+
+  const flag = plan.locationNetworkList[0]?.locationLogo || '🌍';
 
   return (
     <Page>
       <List>
-        {/* Основная информация */}
         <Section>
           <Cell
-            before={<span style={{ fontSize: '24px' }}>{plan.flag}</span>}
-            after={`${plan.price}$`}
-            subtitle={`${plan.data} • ${plan.validity}`}
+            before={<span style={{ fontSize: '24px' }}>{flag}</span>}
+            after={formatPrice(plan.price)}
+            subtitle={`${formatBytes(plan.volume)} • ${plan.duration} ${plan.durationUnit}`}
           >
             {plan.name}
           </Cell>
         </Section>
 
-        {/* Описание тарифа */}
         <Section header="Описание">
           <Cell multiline>{plan.description}</Cell>
         </Section>
 
-        {/* Особенности */}
         <Section header="Особенности">
-          {plan.features.map((feature, index) => (
+          <Cell
+            before={<span style={{ fontSize: '20px' }}>🌐</span>}
+            subtitle="Поддержка высокоскоростных сетей"
+            multiline
+          >
+            {plan.speed} покрытие
+          </Cell>
+          {plan.locationNetworkList[0]?.operatorList.map((op, index) => (
             <Cell
               key={index}
-              before={<span style={{ fontSize: '20px' }}>{feature.icon}</span>}
-              subtitle={feature.description}
+              before={<span style={{ fontSize: '20px' }}>📡</span>}
+              subtitle={op.networkType}
               multiline
             >
-              {feature.title}
+              {op.operatorName}
             </Cell>
           ))}
         </Section>
 
-        {/* Зона покрытия */}
         <Section header="Зона покрытия">
-          {plan.coverageAreas.map((area, index) => (
-            <Cell key={index}>{area}</Cell>
+          {plan.locationNetworkList.map((location, index) => (
+            <Cell key={index}>{location.locationName}</Cell>
           ))}
         </Section>
 
-        {/* Инструкция по установке */}
         <Section header="Как установить">
-          {plan.instructions.map((instruction, index) => (
-            <Cell key={index} before={`${index + 1}.`}>
-              {instruction}
-            </Cell>
-          ))}
+          <Cell before="1.">Отсканируйте QR-код после покупки</Cell>
+          <Cell before="2.">Установите eSIM профиль</Cell>
+          <Cell before="3.">Включите передачу данных</Cell>
+          <Cell before="4.">Готово к использованию!</Cell>
         </Section>
 
-        {/* Кнопка покупки */}
         <Section>
           <Cell>
             <div style={{ padding: '8px 0' }}>
               <Button size="l" stretched onClick={handlePurchase}>
-                Купить за {plan.price}$
+                Купить за {formatPrice(plan.price)}
               </Button>
             </div>
           </Cell>
