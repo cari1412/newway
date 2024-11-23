@@ -3,35 +3,7 @@ import { FC, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Page } from '@/components/Page';
 import { api, type Package } from '@/services/api';
-
-// Вспомогательные функции
-const formatPrice = (price: number): string => {
-  return `$${price.toFixed(2)}`;
-};
-
-const getFlagEmoji = (countryCode: string): string => {
-  if (countryCode.length !== 2) return '🌍';
-  const OFFSET = 127397;
-  const chars = countryCode
-    .toUpperCase()
-    .split('')
-    .map(char => char.charCodeAt(0) + OFFSET);
-  return String.fromCodePoint(...chars);
-};
-
-const getNetworkTypeIcon = (type: string): string => {
-  switch (type.toLowerCase()) {
-    case '5g':
-      return '📶';
-    case '4g':
-    case 'lte':
-      return '📡';
-    case '3g':
-      return '📱';
-    default:
-      return '🌐';
-  }
-};
+import { formatPrice, getFlagEmoji, getNetworkTypeIcon } from '@/utils/formats';
 
 export const PlanDetails: FC = () => {
   const { planId } = useParams();
@@ -100,7 +72,6 @@ export const PlanDetails: FC = () => {
   }
 
   const countryFlag = getFlagEmoji(plan.location[0]);
-
   const features = plan.features || [];
   const networkTypes = features
     .filter(f => f.toLowerCase().includes('g'))
@@ -112,7 +83,7 @@ export const PlanDetails: FC = () => {
         <Section>
           <Cell
             before={<span style={{ fontSize: '24px' }}>{countryFlag}</span>}
-            after={formatPrice(plan.price)}
+            after={formatPrice(plan.retailPrice)}
             subtitle={`${plan.data} • ${plan.validity}`}
           >
             {plan.name}
@@ -167,7 +138,7 @@ export const PlanDetails: FC = () => {
           <Cell>
             <div style={{ padding: '8px 0' }}>
               <Button size="l" stretched onClick={handlePurchase}>
-                Купить за {formatPrice(plan.price)}
+                Купить за {formatPrice(plan.retailPrice)}
               </Button>
             </div>
           </Cell>

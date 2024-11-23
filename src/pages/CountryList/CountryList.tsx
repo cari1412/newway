@@ -3,8 +3,8 @@ import { FC, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Page } from '@/components/Page';
 import { api, type Package } from '@/services/api';
+import { getFlagEmoji, formatPrice, formatPlansCount } from '@/utils/formats';
 
-// Определяем только нужные интерфейсы
 interface Country {
   id: string;
   name: string;
@@ -13,7 +13,6 @@ interface Country {
   startingPrice: number;
 }
 
-// Функция для получения названия страны по коду
 const getCountryName = (code: string): string => {
   const countryNames: Record<string, string> = {
     KW: 'Кувейт',
@@ -27,12 +26,10 @@ const getCountryName = (code: string): string => {
     KH: 'Камбоджа',
     CA: 'Канада',
     DO: 'Доминиканская Республика',
-    // Добавьте другие страны по необходимости
   };
   return countryNames[code] || code;
 };
 
-// Функция для преобразования списка пакетов в список стран
 const parseLocationToCountry = (packages: Package[]): Country[] => {
   const countryMap = new Map<string, Country>();
 
@@ -47,57 +44,18 @@ const parseLocationToCountry = (packages: Package[]): Country[] => {
           name: getCountryName(countryCode),
           flag: getFlagEmoji(countryCode),
           plansCount: 1,
-          startingPrice: pkg.price
+          startingPrice: pkg.retailPrice // Используем розничную цену
         });
       } else {
         const country = countryMap.get(countryCode)!;
         country.plansCount++;
-        country.startingPrice = Math.min(country.startingPrice, pkg.price);
+        country.startingPrice = Math.min(country.startingPrice, pkg.retailPrice);
       }
     });
   });
 
   return Array.from(countryMap.values())
     .sort((a, b) => a.name.localeCompare(b.name));
-};
-
-// Функция для получения эмодзи флага страны
-const getFlagEmoji = (countryCode: string): string => {
-  if (countryCode.length !== 2) return '🌍';
-  
-  const OFFSET = 127397;
-  const chars = countryCode
-    .toUpperCase()
-    .split('')
-    .map(char => char.charCodeAt(0) + OFFSET);
-  
-  return String.fromCodePoint(...chars);
-};
-
-// Функция форматирования цены
-const formatPrice = (price: number): string => {
-  return `$${price.toFixed(2)}`;
-};
-
-// Функция форматирования количества тарифов
-const formatPlansCount = (count: number): string => {
-  const lastDigit = count % 10;
-  const lastTwoDigits = count % 100;
-
-  if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
-    return `${count} тарифов`;
-  }
-
-  switch (lastDigit) {
-    case 1:
-      return `${count} тариф`;
-    case 2:
-    case 3:
-    case 4:
-      return `${count} тарифа`;
-    default:
-      return `${count} тарифов`;
-  }
 };
 
 export const CountryList: FC = () => {

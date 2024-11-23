@@ -3,23 +3,7 @@ import { FC, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Page } from '@/components/Page';
 import { api, type Package } from '@/services/api';
-
-// Вспомогательные функции для форматирования данных
-const formatDataVolume = (dataStr: string): string => {
-  // Данные уже приходят в формате "20.0 GB"
-  return dataStr;
-};
-
-const formatPrice = (price: number): string => {
-  return `$${price.toFixed(2)}`;
-};
-
-const formatValidity = (validity: string): string => {
-  // validity приходит в формате "30 day"
-  const [duration, unit] = validity.split(' ');
-  const unitFormatted = unit === 'day' ? 'дней' : unit;
-  return `${duration} ${unitFormatted}`;
-};
+import { formatPrice, formatValidity } from '@/utils/formats';
 
 export const CountryDetails: FC = () => {
   const { countryId } = useParams();
@@ -35,7 +19,6 @@ export const CountryDetails: FC = () => {
       try {
         setLoading(true);
         const packages = await api.getPackages(countryId);
-        // Фильтруем пакеты для конкретной страны
         const countryPackages = packages.filter(pkg => 
           pkg.location.includes(countryId.toUpperCase())
         );
@@ -93,8 +76,8 @@ export const CountryDetails: FC = () => {
             <Cell
               key={plan.id}
               onClick={() => navigate(`/plan/${plan.id}`)}
-              subtitle={`${formatDataVolume(plan.data)} • ${formatValidity(plan.validity)}`}
-              after={formatPrice(plan.price)}
+              subtitle={`${plan.data} • ${formatValidity(plan.validity)}`}
+              after={formatPrice(plan.retailPrice)}
               multiline
             >
               {plan.name}
