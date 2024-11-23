@@ -4,13 +4,33 @@ import { useParams } from 'react-router-dom';
 import { Page } from '@/components/Page';
 import { api, type Package } from '@/services/api';
 
-const formatBytes = (bytes: number) => {
-  const GB = bytes / (1024 * 1024 * 1024);
-  return `${GB} GB`;
+// Вспомогательные функции
+const formatPrice = (price: number): string => {
+  return `$${price.toFixed(2)}`;
 };
 
-const formatPrice = (price: number) => {
-  return `${(price / 10000).toFixed(2)}$`;
+const getFlagEmoji = (countryCode: string): string => {
+  if (countryCode.length !== 2) return '🌍';
+  const OFFSET = 127397;
+  const chars = countryCode
+    .toUpperCase()
+    .split('')
+    .map(char => char.charCodeAt(0) + OFFSET);
+  return String.fromCodePoint(...chars);
+};
+
+const getNetworkTypeIcon = (type: string): string => {
+  switch (type.toLowerCase()) {
+    case '5g':
+      return '📶';
+    case '4g':
+    case 'lte':
+      return '📡';
+    case '3g':
+      return '📱';
+    default:
+      return '🌐';
+  }
 };
 
 export const PlanDetails: FC = () => {
@@ -25,7 +45,7 @@ export const PlanDetails: FC = () => {
 
       try {
         const packages = await api.getPackages();
-        const matchingPlan = packages.find((p: Package) => p.packageCode === planId);
+        const matchingPlan = packages.find((p: Package) => p.id === planId);
         
         if (matchingPlan) {
           setPlan(matchingPlan);
@@ -49,14 +69,13 @@ export const PlanDetails: FC = () => {
     try {
       const transactionId = `purchase-${Date.now()}`;
       await api.createOrder(transactionId, [{
-        packageCode: plan.packageCode,
-        count: 1,
-        price: plan.price
+        packageCode: plan.id,
+        count: 1
       }]);
-      // Handle successful purchase (e.g. show success message, redirect)
+      alert('Заказ успешно создан!');
     } catch (err) {
       console.error('Purchase failed:', err);
-      // Handle error
+      alert('Ошибка при создании заказа. Пожалуйста, попробуйте позже.');
     }
   };
 
@@ -80,16 +99,21 @@ export const PlanDetails: FC = () => {
     );
   }
 
-  const flag = plan.locationNetworkList[0]?.locationLogo || '🌍';
+  const countryFlag = getFlagEmoji(plan.location[0]);
+
+  const features = plan.features || [];
+  const networkTypes = features
+    .filter(f => f.toLowerCase().includes('g'))
+    .join('/');
 
   return (
     <Page>
       <List>
         <Section>
           <Cell
-            before={<span style={{ fontSize: '24px' }}>{flag}</span>}
+            before={<span style={{ fontSize: '24px' }}>{countryFlag}</span>}
             after={formatPrice(plan.price)}
-            subtitle={`${formatBytes(plan.volume)} • ${plan.duration} ${plan.durationUnit}`}
+            subtitle={`${plan.data} • ${plan.validity}`}
           >
             {plan.name}
           </Cell>
@@ -100,36 +124,43 @@ export const PlanDetails: FC = () => {
         </Section>
 
         <Section header="Особенности">
-          <Cell
-            before={<span style={{ fontSize: '20px' }}>🌐</span>}
-            subtitle="Поддержка высокоскоростных сетей"
-            multiline
-          >
-            {plan.speed} покрытие
-          </Cell>
-          {plan.locationNetworkList[0]?.operatorList.map((op, index) => (
+          {features.length > 0 && (
             <Cell
-              key={index}
-              before={<span style={{ fontSize: '20px' }}>📡</span>}
-              subtitle={op.networkType}
+              before={<span style={{ fontSize: '20px' }}>🌐</span>}
+              subtitle="Поддержка сетей"
               multiline
             >
-              {op.operatorName}
+              {networkTypes}
+            </Cell>
+          )}
+          {features.map((feature: string, index: number) => (
+            <Cell
+              key={index}
+              before={<span style={{ fontSize: '20px' }}>{getNetworkTypeIcon(feature)}</span>}
+              multiline
+            >
+              {feature}
             </Cell>
           ))}
         </Section>
 
         <Section header="Зона покрытия">
-          {plan.locationNetworkList.map((location, index) => (
-            <Cell key={index}>{location.locationName}</Cell>
+          {plan.location.map((countryCode: string, index: number) => (
+            <Cell 
+              key={index}
+              before={<span style={{ fontSize: '20px' }}>{getFlagEmoji(countryCode)}</span>}
+            >
+              {countryCode}
+            </Cell>
           ))}
         </Section>
 
-        <Section header="Как установить">
-          <Cell before="1.">Отсканируйте QR-код после покупки</Cell>
-          <Cell before="2.">Установите eSIM профиль</Cell>
-          <Cell before="3.">Включите передачу данных</Cell>
-          <Cell before="4.">Готово к использованию!</Cell>
+        <Section header="Инструкция по установке">
+          <Cell before="1️⃣">Оплатите eSIM</Cell>
+          <Cell before="2️⃣">Отсканируйте QR-код</Cell>
+          <Cell before="3️⃣">Установите профиль eSIM</Cell>
+          <Cell before="4️⃣">Включите передачу данных</Cell>
+          <Cell before="5️⃣">Готово к использованию!</Cell>
         </Section>
 
         <Section>

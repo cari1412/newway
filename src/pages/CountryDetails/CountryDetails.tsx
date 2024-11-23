@@ -4,13 +4,21 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Page } from '@/components/Page';
 import { api, type Package } from '@/services/api';
 
-const formatBytes = (bytes: number) => {
-  const GB = bytes / (1024 * 1024 * 1024);
-  return `${GB} GB`;
+// Вспомогательные функции для форматирования данных
+const formatDataVolume = (dataStr: string): string => {
+  // Данные уже приходят в формате "20.0 GB"
+  return dataStr;
 };
 
-const formatPrice = (price: number) => {
-  return `${(price / 10000).toFixed(2)}$`;
+const formatPrice = (price: number): string => {
+  return `$${price.toFixed(2)}`;
+};
+
+const formatValidity = (validity: string): string => {
+  // validity приходит в формате "30 day"
+  const [duration, unit] = validity.split(' ');
+  const unitFormatted = unit === 'day' ? 'дней' : unit;
+  return `${duration} ${unitFormatted}`;
 };
 
 export const CountryDetails: FC = () => {
@@ -25,11 +33,17 @@ export const CountryDetails: FC = () => {
       if (!countryId) return;
 
       try {
+        setLoading(true);
         const packages = await api.getPackages(countryId);
-        setPlans(packages);
+        // Фильтруем пакеты для конкретной страны
+        const countryPackages = packages.filter(pkg => 
+          pkg.location.includes(countryId.toUpperCase())
+        );
+        setPlans(countryPackages);
+        setError(null);
       } catch (err) {
-        setError('Ошибка загрузки тарифов');
         console.error('Failed to load plans:', err);
+        setError('Ошибка загрузки тарифов. Пожалуйста, попробуйте позже.');
       } finally {
         setLoading(false);
       }
@@ -58,6 +72,16 @@ export const CountryDetails: FC = () => {
     );
   }
 
+  if (plans.length === 0) {
+    return (
+      <Page>
+        <Section header="Нет доступных тарифов">
+          <Cell>К сожалению, для выбранной страны нет доступных тарифных планов.</Cell>
+        </Section>
+      </Page>
+    );
+  }
+
   return (
     <Page>
       <List>
@@ -67,10 +91,11 @@ export const CountryDetails: FC = () => {
         >
           {plans.map((plan) => (
             <Cell
-              key={plan.packageCode}
-              onClick={() => navigate(`/plan/${plan.packageCode}`)}
-              subtitle={`${formatBytes(plan.volume)} • ${plan.duration} ${plan.durationUnit}`}
+              key={plan.id}
+              onClick={() => navigate(`/plan/${plan.id}`)}
+              subtitle={`${formatDataVolume(plan.data)} • ${formatValidity(plan.validity)}`}
               after={formatPrice(plan.price)}
+              multiline
             >
               {plan.name}
             </Cell>
