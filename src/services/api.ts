@@ -3,14 +3,13 @@ import { calculateRetailPrice } from '@/utils/price';
 
 const API_URL = 'https://api.sexystyle.site';
 
-// Интерфейсы
 export interface Package {
   id: string;
   name: string;
   data: string;
   validity: string;
-  price: number; // Оптовая цена
-  retailPrice: number; // Наша розничная цена
+  price: number;
+  retailPrice: number;
   location: string[];
   description: string;
   features: string[];
@@ -20,6 +19,12 @@ export interface Package {
 interface OrderPackageInfo {
   packageCode: string;
   count: number;
+}
+
+interface PaymentInfo {
+  contractAddress: string;
+  amount: string;
+  transactionId: string;
 }
 
 interface APIResponse<T> {
@@ -88,13 +93,12 @@ export const api = {
         packages = response.data.obj.packageList as Package[];
       }
 
-      // Преобразуем пакеты, добавляя розничную цену
       return packages.map(pkg => {
         const retailPrice = calculateRetailPrice(pkg.price);
         return {
           ...pkg,
-          retailPrice, // Сохраняем розничную цену в поле retailPrice
-          price: retailPrice // Перезаписываем исходную цену розничной для отображения
+          retailPrice,
+          price: retailPrice
         };
       });
 
@@ -122,18 +126,49 @@ export const api = {
     }
   },
 
-  async getOrderStatus(orderNo: string): Promise<string> {
+  async getOrderStatus(orderNo: string): Promise<{ status: string; payment?: PaymentInfo }> {
     try {
-      const response = await apiClient.get<APIResponse<{ status: string }>>(`/api/orders/${orderNo}`);
+      const response = await apiClient.get<APIResponse<{ status: string; payment?: PaymentInfo }>>(`/api/orders/${orderNo}`);
 
       if (!response.data.success) {
         throw new Error(response.data.errorMsg || 'Failed to get order status');
       }
 
-      return response.data.data?.status || '';
+      return response.data.data || { status: '' };
     } catch (error) {
       console.error('Failed to get order status:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to get order status');
+    }
+  },
+
+  async createPayment(orderId: string, amount: number): Promise<PaymentInfo> {
+    try {
+      const response = await apiClient.post<APIResponse<PaymentInfo>>('/api/payments/create', {
+        orderId,
+        amount
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.errorMsg || 'Failed to create payment');
+      }
+
+      return response.data.data!;
+    } catch (error) {
+      console.error('Failed to create payment:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to create payment');
+    }
+  },
+
+  async verifyPayment(transactionId: string): Promise<boolean> {
+    try {
+      const response = await apiClient.post<APIResponse<{ verified: boolean }>>('/api/payments/verify', {
+        transactionId
+      });
+
+      return response.data.data?.verified || false;
+    } catch (error) {
+      console.error('Failed to verify payment:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to verify payment');
     }
   }
 };
