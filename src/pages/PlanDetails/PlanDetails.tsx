@@ -10,6 +10,7 @@ export const PlanDetails: FC = () => {
   const [plan, setPlan] = useState<Package | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -37,17 +38,21 @@ export const PlanDetails: FC = () => {
 
   const handlePurchase = async () => {
     if (!plan) return;
+    setProcessing(true);
     
     try {
       const transactionId = `purchase-${Date.now()}`;
       await api.createOrder(transactionId, [{
         packageCode: plan.id,
-        count: 1
+        count: 1,
+        price: plan.retailPrice // Добавляем цену из плана
       }]);
       alert('Заказ успешно создан!');
     } catch (err) {
       console.error('Purchase failed:', err);
       alert('Ошибка при создании заказа. Пожалуйста, попробуйте позже.');
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -137,8 +142,13 @@ export const PlanDetails: FC = () => {
         <Section>
           <Cell>
             <div style={{ padding: '8px 0' }}>
-              <Button size="l" stretched onClick={handlePurchase}>
-                Купить за {formatPrice(plan.retailPrice)}
+              <Button 
+                size="l" 
+                stretched 
+                onClick={handlePurchase}
+                disabled={processing}
+              >
+                {processing ? 'Обработка...' : `Купить за ${formatPrice(plan.retailPrice)}`}
               </Button>
             </div>
           </Cell>
