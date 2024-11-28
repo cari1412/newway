@@ -3,6 +3,7 @@ import { calculateRetailPrice } from '@/utils/price';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://api.sexystyle.site';
 
+// Интерфейсы остаются те же
 export interface Package {
   id: string;
   name: string;
@@ -22,12 +23,6 @@ export interface OrderPackage {
   price: number;
 }
 
-interface PaymentInfo {
-  contractAddress: string;
-  amount: string;
-  transactionId: string;
-}
-
 interface APIResponse<T> {
   success: boolean;
   errorCode: string | null;
@@ -44,30 +39,10 @@ const apiClient = axios.create({
   timeout: 15000
 });
 
-apiClient.interceptors.request.use(
-  (config) => {
-    console.log('🚀 Request:', { url: config.url, method: config.method, data: config.data });
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('❌ Response Error:', { 
-      url: error.config?.url,
-      message: error.message,
-      response: error.response?.data 
-    });
-    return Promise.reject(error);
-  }
-);
-
 export const api = {
   async getPackages(location?: string): Promise<Package[]> {
     try {
-      const response = await apiClient.get<APIResponse<Package[]>>('/api/v1/packages', {
+      const response = await apiClient.get<APIResponse<Package[]>>('/api/packages', { // убрали v1
         params: { location }
       });
 
@@ -81,77 +56,42 @@ export const api = {
         };
       });
     } catch (error) {
+      console.error('Failed to fetch packages:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to fetch packages');
     }
   },
 
   async createOrder(transactionId: string, selectedPackages: OrderPackage[]): Promise<any> {
     try {
-      // Считаем общую сумму заказа
-      const totalAmount = selectedPackages.reduce((sum, pkg) => sum + (pkg.count * pkg.price), 0);
-      
-      // Создаем платеж
-      const payment = await this.createPayment(transactionId, totalAmount);
-      
       // Создаем заказ
-      const response = await apiClient.post<APIResponse<any>>('/api/v1/orders', {
+      const response = await apiClient.post<APIResponse<any>>('/api/orders', { // убрали v1
         transactionId,
-        packages: selectedPackages,
-        paymentInfo: payment
+        packages: selectedPackages
       });
 
       if (!response.data.success) {
         throw new Error(response.data.errorMsg || 'Failed to create order');
       }
 
-      return { ...response.data.data, payment };
+      return response.data.data;
     } catch (error) {
+      console.error('Failed to create order:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to create order');
     }
   },
 
-  async getOrderStatus(orderNo: string): Promise<{ status: string; payment?: PaymentInfo }> {
+  async getOrderStatus(orderNo: string) {
     try {
-      const response = await apiClient.get<APIResponse<{ status: string; payment?: PaymentInfo }>>(
-        `/api/v1/orders/${orderNo}`
-      );
-
+      const response = await apiClient.get<APIResponse<any>>(`/api/orders/${orderNo}`); // убрали v1
+      
       if (!response.data.success) {
         throw new Error(response.data.errorMsg || 'Failed to get order status');
       }
 
-      return response.data.data || { status: '' };
+      return response.data.data;
     } catch (error) {
+      console.error('Failed to get order status:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to get order status');
-    }
-  },
-
-  async createPayment(orderId: string, amount: number): Promise<PaymentInfo> {
-    try {
-      const response = await apiClient.post<APIResponse<PaymentInfo>>('/api/v1/payments/create', {
-        orderId,
-        amount: amount.toString()
-      });
-
-      if (!response.data.success) {
-        throw new Error(response.data.errorMsg || 'Failed to create payment');
-      }
-
-      return response.data.data!;
-    } catch (error) {
-      throw new Error(error instanceof Error ? error.message : 'Failed to create payment');
-    }
-  },
-
-  async verifyPayment(transactionId: string): Promise<boolean> {
-    try {
-      const response = await apiClient.post<APIResponse<{ verified: boolean }>>('/api/v1/payments/verify', {
-        transactionId
-      });
-
-      return response.data.data?.verified || false;
-    } catch (error) {
-      throw new Error(error instanceof Error ? error.message : 'Failed to verify payment');
     }
   }
 };
