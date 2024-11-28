@@ -13,7 +13,8 @@ export default defineConfig({
       '/api': {
         target: 'https://api.sexystyle.site',
         changeOrigin: true,
-        secure: false
+        secure: false,
+        rewrite: path => path.replace(/^\/api/, '/api/v1/open')
       }
     }
   }
