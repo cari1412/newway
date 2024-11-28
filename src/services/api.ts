@@ -142,7 +142,7 @@ export const api = {
 
   async createPayment(transactionId: string, amount: number): Promise<TonPayment> {
     try {
-      const response = await apiClient.post<APIResponse<TonPayment>>('/api/v1/payments/create', {
+      const response = await apiClient.post<APIResponse<TonPayment>>('/api/payments/create', {
         transactionId,
         amount: amount.toString() // Convert amount to string as required by TON
       });
