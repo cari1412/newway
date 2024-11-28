@@ -65,7 +65,6 @@ const PlanDetails: FC = () => {
     try {
       setProcessing(true);
       
-      // Check wallet connection
       if (!tonConnectUI.connected) {
         await tonConnectUI.connectWallet();
         setProcessing(false);
@@ -74,47 +73,38 @@ const PlanDetails: FC = () => {
 
       const transactionId = `purchase-${Date.now()}`;
       
-      // Create payment on backend
-      const payment = await api.createPayment(transactionId, plan.retailPrice);
+      // Create payment with packageId
+      const payment = await api.createPayment(transactionId, plan.retailPrice, plan.id);
+
+      const transaction = {
+        validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
+        messages: [
+          {
+            address: payment.address,
+            amount: payment.amount,
+            payload: payment.payload,
+          },
+        ],
+      };
+
+      const result = await tonConnectUI.sendTransaction(transaction);
       
-      // Send TON transaction
-      try {
-        const transaction = {
-          validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
-          messages: [
-            {
-              address: payment.address,
-              amount: payment.amount,
-              payload: payment.payload,
-            },
-          ],
-        };
+      if (result) {
+        // Create order with packageId
+        await api.createOrder(transactionId, plan.id);
 
-        const result = await tonConnectUI.sendTransaction(transaction);
-        
-        if (result) {
-          // Create order
-          await api.createOrder(transactionId, [{
-            packageCode: plan.id,
-            count: 1
-          }]);
+        toast.loading('Проверка оплаты...', { duration: 3000 });
 
-          toast.loading('Проверка оплаты...', { duration: 3000 });
+        const paymentVerified = await checkPaymentStatus(transactionId);
 
-          const paymentVerified = await checkPaymentStatus(transactionId);
-
-          if (paymentVerified) {
-            toast.success('Оплата прошла успешно! Ваш eSIM будет доставлен в ближайшее время.');
-          } else {
-            toast.error('Не удалось подтвердить оплату. Пожалуйста, свяжитесь с поддержкой.');
-          }
+        if (paymentVerified) {
+          toast.success('Оплата прошла успешно! Ваш eSIM будет доставлен в ближайшее время.');
+        } else {
+          toast.error('Не удалось подтвердить оплату. Пожалуйста, свяжитесь с поддержкой.');
         }
-      } catch (error) {
-        console.error('Transaction error:', error);
-        toast.error('Ошибка при отправке транзакции. Пожалуйста, попробуйте снова.');
       }
-    } catch (err) {
-      console.error('Purchase failed:', err);
+    } catch (error) {
+      console.error('Purchase failed:', error);
       toast.error('Ошибка при оплате. Пожалуйста, попробуйте позже.');
     } finally {
       setProcessing(false);

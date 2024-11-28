@@ -16,11 +16,6 @@ export interface Package {
   smsStatus: number;
 }
 
-interface OrderPackageInfo {
-  packageCode: string;
-  count: number;
-}
-
 export interface TonPayment {
   address: string;
   amount: string;
@@ -107,11 +102,14 @@ export const api = {
     }
   },
 
-  async createOrder(transactionId: string, packages: OrderPackageInfo[]): Promise<any> {
+  async createOrder(transactionId: string, packageCode: string): Promise<any> {
     try {
-      const response = await apiClient.post<APIResponse<any>>('/api/v1/orders', {
+      const response = await apiClient.post<APIResponse<any>>('/api/orders', {
         transactionId,
-        packages
+        packages: [{
+          packageCode,
+          count: 1
+        }]
       });
 
       if (!response.data.success) {
@@ -127,7 +125,7 @@ export const api = {
 
   async getOrderStatus(orderNo: string): Promise<string> {
     try {
-      const response = await apiClient.get<APIResponse<{ status: string }>>(`/api/v1/orders/${orderNo}`);
+      const response = await apiClient.get<APIResponse<{ status: string }>>(`/api/orders/${orderNo}`);
 
       if (!response.data.success) {
         throw new Error(response.data.errorMsg || 'Failed to get order status');
@@ -140,11 +138,12 @@ export const api = {
     }
   },
 
-  async createPayment(transactionId: string, amount: number): Promise<TonPayment> {
+  async createPayment(transactionId: string, amount: number, packageId: string): Promise<TonPayment> {
     try {
       const response = await apiClient.post<APIResponse<TonPayment>>('/api/payments/create', {
         transactionId,
-        amount: amount.toString() // Convert amount to string as required by TON
+        amount: amount.toString(),
+        packageId
       });
 
       if (!response.data.success) {
@@ -164,7 +163,7 @@ export const api = {
 
   async verifyPayment(transactionId: string): Promise<boolean> {
     try {
-      const response = await apiClient.post<APIResponse<{ verified: boolean }>>('/api/v1/payments/verify', {
+      const response = await apiClient.post<APIResponse<{ verified: boolean }>>('/api/payments/verify', {
         transactionId
       });
 
