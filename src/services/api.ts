@@ -9,8 +9,8 @@ export interface Package {
   name: string;
   data: string;
   validity: string;
-  price: number; // Оптовая цена
-  retailPrice: number; // Наша розничная цена
+  price: number;
+  retailPrice: number;
   location: string[];
   description: string;
   features: string[];
@@ -20,6 +20,12 @@ export interface Package {
 interface OrderPackageInfo {
   packageCode: string;
   count: number;
+}
+
+export interface TonPayment {
+  address: string;
+  amount: string;
+  payload: string;
 }
 
 interface APIResponse<T> {
@@ -88,13 +94,12 @@ export const api = {
         packages = response.data.obj.packageList as Package[];
       }
 
-      // Преобразуем пакеты, добавляя розничную цену
       return packages.map(pkg => {
         const retailPrice = calculateRetailPrice(pkg.price);
         return {
           ...pkg,
-          retailPrice, // Сохраняем розничную цену в поле retailPrice
-          price: retailPrice // Перезаписываем исходную цену розничной для отображения
+          retailPrice,
+          price: retailPrice
         };
       });
 
@@ -134,6 +139,41 @@ export const api = {
     } catch (error) {
       console.error('Failed to get order status:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to get order status');
+    }
+  },
+
+  async createPayment(transactionId: string, amount: number): Promise<TonPayment> {
+    try {
+      const response = await apiClient.post<APIResponse<TonPayment>>('/api/payments/create', {
+        transactionId,
+        amount
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.errorMsg || 'Failed to create payment');
+      }
+
+      return response.data.data as TonPayment;
+    } catch (error) {
+      console.error('Failed to create payment:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to create payment');
+    }
+  },
+
+  async verifyPayment(transactionId: string): Promise<boolean> {
+    try {
+      const response = await apiClient.post<APIResponse<{ verified: boolean }>>('/api/payments/verify', {
+        transactionId
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.errorMsg || 'Failed to verify payment');
+      }
+
+      return response.data.data?.verified || false;
+    } catch (error) {
+      console.error('Failed to verify payment:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to verify payment');
     }
   }
 };

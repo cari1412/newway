@@ -1,15 +1,22 @@
 import { Section, Cell, List, Button, Spinner } from '@telegram-apps/telegram-ui';
-import { FC, useEffect, useState } from 'react';
+import { FC, useEffect, useState, ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { Page } from '@/components/Page';
 import { api, type Package } from '@/services/api';
 import { formatPrice, getFlagEmoji, getNetworkTypeIcon } from '@/utils/formats';
+import { createTonTransfer } from '@/services/ton-connect';
+import { useTonConnectUI } from '@tonconnect/ui-react';
+import { toast } from 'react-hot-toast';
 
-export const PlanDetails: FC = () => {
+interface PlanDetailsProps {}
+
+const PlanDetails: FC<PlanDetailsProps> = (): ReactNode => {
   const { planId } = useParams();
   const [plan, setPlan] = useState<Package | null>(null);
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tonConnectUI] = useTonConnectUI();
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -35,26 +42,76 @@ export const PlanDetails: FC = () => {
     loadPlan();
   }, [planId]);
 
+  const checkPaymentStatus = async (transactionId: string): Promise<boolean> => {
+    let attempts = 0;
+    const maxAttempts = 10;
+    const checkInterval = 3000;
+
+    while (attempts < maxAttempts) {
+      try {
+        const verified = await api.verifyPayment(transactionId);
+        if (verified) {
+          return true;
+        }
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      } catch (error) {
+        console.error('Payment verification attempt failed:', error);
+      }
+    }
+    return false;
+  };
+
   const handlePurchase = async () => {
-    if (!plan) return;
+    if (!plan || processing) return;
     
     try {
+      setProcessing(true);
+      
+      // Check wallet connection
+      if (!tonConnectUI.connected) {
+        await tonConnectUI.connectWallet();
+        setProcessing(false);
+        return;
+      }
+
       const transactionId = `purchase-${Date.now()}`;
-      await api.createOrder(transactionId, [{
-        packageCode: plan.id,
-        count: 1
-      }]);
-      alert('Заказ успешно создан!');
+      
+      // Create payment on backend
+      const payment = await api.createPayment(transactionId, plan.retailPrice);
+      
+      // Send TON transaction
+      const result = await createTonTransfer(payment);
+      
+      if (result) {
+        // Create order
+        await api.createOrder(transactionId, [{
+          packageCode: plan.id,
+          count: 1
+        }]);
+
+        toast.loading('Проверка оплаты...', { duration: 3000 });
+
+        const paymentVerified = await checkPaymentStatus(transactionId);
+
+        if (paymentVerified) {
+          toast.success('Оплата прошла успешно! Ваш eSIM будет доставлен в ближайшее время.');
+        } else {
+          toast.error('Не удалось подтвердить оплату. Пожалуйста, свяжитесь с поддержкой.');
+        }
+      }
     } catch (err) {
       console.error('Purchase failed:', err);
-      alert('Ошибка при создании заказа. Пожалуйста, попробуйте позже.');
+      toast.error('Ошибка при оплате. Пожалуйста, попробуйте позже.');
+    } finally {
+      setProcessing(false);
     }
   };
 
   if (loading) {
     return (
       <Page>
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+        <div className="flex justify-center p-5">
           <Spinner size="m" />
         </div>
       </Page>
@@ -82,7 +139,7 @@ export const PlanDetails: FC = () => {
       <List>
         <Section>
           <Cell
-            before={<span style={{ fontSize: '24px' }}>{countryFlag}</span>}
+            before={<span className="text-2xl">{countryFlag}</span>}
             after={formatPrice(plan.retailPrice)}
             subtitle={`${plan.data} • ${plan.validity}`}
           >
@@ -97,7 +154,7 @@ export const PlanDetails: FC = () => {
         <Section header="Особенности">
           {features.length > 0 && (
             <Cell
-              before={<span style={{ fontSize: '20px' }}>🌐</span>}
+              before={<span className="text-xl">🌐</span>}
               subtitle="Поддержка сетей"
               multiline
             >
@@ -107,7 +164,7 @@ export const PlanDetails: FC = () => {
           {features.map((feature: string, index: number) => (
             <Cell
               key={index}
-              before={<span style={{ fontSize: '20px' }}>{getNetworkTypeIcon(feature)}</span>}
+              before={<span className="text-xl">{getNetworkTypeIcon(feature)}</span>}
               multiline
             >
               {feature}
@@ -119,7 +176,7 @@ export const PlanDetails: FC = () => {
           {plan.location.map((countryCode: string, index: number) => (
             <Cell 
               key={index}
-              before={<span style={{ fontSize: '20px' }}>{getFlagEmoji(countryCode)}</span>}
+              before={<span className="text-xl">{getFlagEmoji(countryCode)}</span>}
             >
               {countryCode}
             </Cell>
@@ -136,9 +193,21 @@ export const PlanDetails: FC = () => {
 
         <Section>
           <Cell>
-            <div style={{ padding: '8px 0' }}>
-              <Button size="l" stretched onClick={handlePurchase}>
-                Купить за {formatPrice(plan.retailPrice)}
+            <div className="py-2">
+              <Button 
+                size="l" 
+                stretched 
+                onClick={handlePurchase}
+                disabled={processing}
+              >
+                {processing ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Spinner size="s" />
+                    <span>Обработка...</span>
+                  </div>
+                ) : (
+                  `Купить за ${formatPrice(plan.retailPrice)}`
+                )}
               </Button>
             </div>
           </Cell>
@@ -147,3 +216,5 @@ export const PlanDetails: FC = () => {
     </Page>
   );
 };
+
+export default PlanDetails;
