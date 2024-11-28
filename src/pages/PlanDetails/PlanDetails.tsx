@@ -1,16 +1,13 @@
 import { Section, Cell, List, Button, Spinner } from '@telegram-apps/telegram-ui';
-import { FC, useEffect, useState, ReactNode } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Page } from '@/components/Page';
 import { api, type Package } from '@/services/api';
 import { formatPrice, getFlagEmoji, getNetworkTypeIcon } from '@/utils/formats';
-import { createTonTransfer } from '@/services/ton-connect';
 import { useTonConnectUI } from '@tonconnect/ui-react';
 import { toast } from 'react-hot-toast';
 
-interface PlanDetailsProps {}
-
-const PlanDetails: FC<PlanDetailsProps> = (): ReactNode => {
+const PlanDetails: FC = () => {
   const { planId } = useParams();
   const [plan, setPlan] = useState<Package | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,24 +78,40 @@ const PlanDetails: FC<PlanDetailsProps> = (): ReactNode => {
       const payment = await api.createPayment(transactionId, plan.retailPrice);
       
       // Send TON transaction
-      const result = await createTonTransfer(payment);
-      
-      if (result) {
-        // Create order
-        await api.createOrder(transactionId, [{
-          packageCode: plan.id,
-          count: 1
-        }]);
+      try {
+        const transaction = {
+          validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
+          messages: [
+            {
+              address: payment.address,
+              amount: payment.amount,
+              payload: payment.payload,
+            },
+          ],
+        };
 
-        toast.loading('Проверка оплаты...', { duration: 3000 });
+        const result = await tonConnectUI.sendTransaction(transaction);
+        
+        if (result) {
+          // Create order
+          await api.createOrder(transactionId, [{
+            packageCode: plan.id,
+            count: 1
+          }]);
 
-        const paymentVerified = await checkPaymentStatus(transactionId);
+          toast.loading('Проверка оплаты...', { duration: 3000 });
 
-        if (paymentVerified) {
-          toast.success('Оплата прошла успешно! Ваш eSIM будет доставлен в ближайшее время.');
-        } else {
-          toast.error('Не удалось подтвердить оплату. Пожалуйста, свяжитесь с поддержкой.');
+          const paymentVerified = await checkPaymentStatus(transactionId);
+
+          if (paymentVerified) {
+            toast.success('Оплата прошла успешно! Ваш eSIM будет доставлен в ближайшее время.');
+          } else {
+            toast.error('Не удалось подтвердить оплату. Пожалуйста, свяжитесь с поддержкой.');
+          }
         }
+      } catch (error) {
+        console.error('Transaction error:', error);
+        toast.error('Ошибка при отправке транзакции. Пожалуйста, попробуйте снова.');
       }
     } catch (err) {
       console.error('Purchase failed:', err);
