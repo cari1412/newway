@@ -1,20 +1,31 @@
-// ton-connect.ts
-import { TonConnectUI } from '@tonconnect/ui';
+import { TonConnectUI, THEME } from '@tonconnect/ui';
 
 const manifestUrl = 'https://api.sexystyle.site/tonconnect-manifest.json';
 
+// Безопасное получение цветовой схемы
+const getColorScheme = () => {
+  try {
+    return window.Telegram?.WebApp?.colorScheme === 'dark' ? THEME.DARK : THEME.LIGHT;
+  } catch {
+    return THEME.LIGHT;
+  }
+};
+
 export const tonConnect = new TonConnectUI({
   manifestUrl,
-  buttonRootId: 'ton-connect-button',
+  actionsConfiguration: {
+    twaReturnUrl: 'https://t.me/esim4you_bot',
+  },
+  uiPreferences: {
+    theme: getColorScheme(),
+  },
 });
 
-export interface TonPayment {
+export const createTonTransfer = async (payment: {
   address: string;
   amount: string;
   payload: string;
-}
-
-export const createTonTransfer = async (payment: TonPayment) => {
+}) => {
   try {
     if (!tonConnect.connected) {
       throw new Error('TON Wallet not connected');

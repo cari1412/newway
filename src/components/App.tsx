@@ -9,7 +9,6 @@ import { CountryList } from '../pages/CountryList/CountryList';
 import { CountryDetails } from '../pages/CountryDetails/CountryDetails';
 import PlanDetails from '../pages/PlanDetails/PlanDetails';
 
-// Манифест для TON Connect
 const manifestUrl = 'https://api.sexystyle.site/tonconnect-manifest.json';
 
 export function App() {
