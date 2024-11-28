@@ -3,11 +3,6 @@ import { calculateRetailPrice } from '@/utils/price';
 
 const API_URL = 'https://api.sexystyle.site';
 
-// Логгер для отладки запросов
-const logRequest = (method: string, url: string, data?: any) => {
-  console.log(`🚀 ${method} Request to: ${url}`, data ? { data } : '');
-};
-
 export interface Package {
   id: string;
   name: string;
@@ -43,20 +38,14 @@ const apiClient = axios.create({
   timeout: 15000
 });
 
-// Добавляем перехватчик для логирования всех запросов
-apiClient.interceptors.request.use(config => {
-  logRequest(config.method?.toUpperCase() || 'unknown', config.url || '', config.data);
-  return config;
-});
-
 export const api = {
   async getPackages(location?: string): Promise<Package[]> {
     try {
-      const response = await apiClient.get<APIResponse<Package[]>>('/api/v1/open/package/list', {
-        params: { locationCode: location }
+      const response = await apiClient.get<APIResponse<Package[]>>('/api/packages', {
+        params: { location }
       });
 
-      const packages = response.data.obj?.packageList || [];
+      const packages = response.data.data || response.data.obj?.packageList || [];
       return packages.map(pkg => {
         const calculatedPrice = calculateRetailPrice(pkg.price);
         return {
@@ -73,15 +62,9 @@ export const api = {
 
   async createOrder(transactionId: string, selectedPackages: OrderPackage[]): Promise<any> {
     try {
-      console.log('Creating order with data:', { transactionId, packages: selectedPackages });
-      
-      const response = await apiClient.post<APIResponse<any>>('/api/v1/open/orders/create', {
+      const response = await apiClient.post<APIResponse<any>>('/api/orders', {
         transactionId,
-        packages: selectedPackages.map(pkg => ({
-          packageCode: pkg.packageCode,
-          count: pkg.count,
-          price: pkg.price
-        }))
+        packages: selectedPackages
       });
 
       if (!response.data.success) {
@@ -91,13 +74,13 @@ export const api = {
       return response.data.data;
     } catch (error) {
       console.error('Failed to create order:', error);
-      throw error; // Прокидываем ошибку для обработки в компоненте
+      throw error;
     }
   },
 
   async getOrderStatus(orderNo: string) {
     try {
-      const response = await apiClient.get<APIResponse<any>>(`/api/v1/open/orders/${orderNo}/status`);
+      const response = await apiClient.get<APIResponse<any>>(`/api/orders/${orderNo}`);
       
       if (!response.data.success) {
         throw new Error(response.data.errorMsg || 'Failed to get order status');
