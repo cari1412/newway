@@ -73,8 +73,8 @@ const PlanDetails: FC = () => {
 
       const transactionId = `purchase-${Date.now()}`;
       
-      // Create payment with packageId
-      const payment = await api.createPayment(transactionId, plan.retailPrice, plan.id);
+      // Используем price вместо retailPrice
+      const payment = await api.createPayment(transactionId, plan.price, plan.id);
 
       const transaction = {
         validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
@@ -90,7 +90,6 @@ const PlanDetails: FC = () => {
       const result = await tonConnectUI.sendTransaction(transaction);
       
       if (result) {
-        // Create order with packageId
         await api.createOrder(transactionId, plan.id);
 
         toast.loading('Проверка оплаты...', { duration: 3000 });
@@ -143,7 +142,7 @@ const PlanDetails: FC = () => {
         <Section>
           <Cell
             before={<span className="text-2xl">{countryFlag}</span>}
-            after={formatPrice(plan.retailPrice)}
+            after={formatPrice(plan.price)} // Используем price вместо retailPrice
             subtitle={`${plan.data} • ${plan.validity}`}
           >
             {plan.name}
@@ -209,7 +208,7 @@ const PlanDetails: FC = () => {
                     <span>Обработка...</span>
                   </div>
                 ) : (
-                  `Купить за ${formatPrice(plan.retailPrice)}`
+                  `Купить за ${formatPrice(plan.price)}` // Используем price вместо retailPrice
                 )}
               </Button>
             </div>

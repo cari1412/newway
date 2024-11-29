@@ -44,12 +44,12 @@ const parseLocationToCountry = (packages: Package[]): Country[] => {
           name: getCountryName(countryCode),
           flag: getFlagEmoji(countryCode),
           plansCount: 1,
-          startingPrice: pkg.retailPrice // Используем розничную цену
+          startingPrice: pkg.price // Используем базовую цену
         });
       } else {
         const country = countryMap.get(countryCode)!;
         country.plansCount++;
-        country.startingPrice = Math.min(country.startingPrice, pkg.retailPrice);
+        country.startingPrice = Math.min(country.startingPrice, pkg.price);
       }
     });
   });

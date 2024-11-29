@@ -8,6 +8,7 @@ import { CountryList } from '../pages/CountryList/CountryList';
 import { CountryDetails } from '../pages/CountryDetails/CountryDetails';
 import PlanDetails from '../pages/PlanDetails/PlanDetails';
 import { TonConnectProvider } from '../providers/TonConnectProvider';
+import ApiDebugger from './ApiDebugger/index'; // Добавляем импорт ApiDebugger
 
 export function App() {
   const lp = useLaunchParams();
@@ -37,6 +38,8 @@ export function App() {
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </HashRouter>
+        {/* Добавляем ApiDebugger и показываем его только в режиме разработки */}
+        {import.meta.env.DEV && <ApiDebugger />}
       </AppRoot>
     </TonConnectProvider>
   );

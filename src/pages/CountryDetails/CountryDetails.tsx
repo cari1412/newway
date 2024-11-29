@@ -77,7 +77,7 @@ export const CountryDetails: FC = () => {
               key={plan.id}
               onClick={() => navigate(`/plan/${plan.id}`)}
               subtitle={`${plan.data} • ${formatValidity(plan.validity)}`}
-              after={formatPrice(plan.retailPrice)}
+              after={formatPrice(plan.price)} // Заменено с retailPrice на price
               multiline
             >
               {plan.name}
