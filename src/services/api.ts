@@ -9,7 +9,7 @@ export interface Package {
   data: string;
   validity: string;
   price: number;
-  retailPrice?: number; // Добавляем поле для розничной цены
+  retailPrice?: number;
   location: string[];
   description: string;
   features: string[];
@@ -46,10 +46,6 @@ const apiClient = axios.create({
   timeout: 15000
 });
 
-// Кэш для пакетов
-let packagesCache: { [key: string]: Package[] } = {};
-
-// Логирование запросов
 apiClient.interceptors.request.use(
   (config) => {
     console.log('🚀 Request:', {
@@ -66,7 +62,6 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Логирование ответов
 apiClient.interceptors.response.use(
   (response) => {
     console.log('✅ Response:', {
@@ -90,13 +85,6 @@ apiClient.interceptors.response.use(
 export const api = {
   async getPackages(location?: string): Promise<Package[]> {
     try {
-      // Проверяем кэш
-      const cacheKey = location || 'all';
-      if (packagesCache[cacheKey]) {
-        console.log('Returning cached packages for:', cacheKey);
-        return packagesCache[cacheKey];
-      }
-
       const response = await apiClient.post<APIResponse<Package[]>>('/api/v1/open/package/list', {
         locationCode: location || '',
         type: 'BASE'
@@ -113,16 +101,10 @@ export const api = {
         packages = response.data.data;
       }
 
-      // Добавляем розничные цены
-      const packagesWithRetail = packages.map(pkg => ({
+      return packages.map(pkg => ({
         ...pkg,
-        retailPrice: calculateRetailPrice(pkg.price / 100) * 100 // Конвертируем в центы и обратно
+        retailPrice: Math.round(calculateRetailPrice(pkg.price / 100) * 100)
       }));
-
-      // Сохраняем в кэш
-      packagesCache[cacheKey] = packagesWithRetail;
-
-      return packagesWithRetail;
     } catch (error) {
       console.error('Failed to fetch packages:', error);
       throw error;
@@ -167,12 +149,9 @@ export const api = {
 
   async createPayment(transactionId: string, amount: number, packageId: string): Promise<TonPayment> {
     try {
-      // Убедимся, что amount передается в правильном формате
-      const formattedAmount = Math.round(amount); // Убираем десятичные знаки, так как работаем в центах
-      
       const response = await apiClient.post<APIResponse<TonPayment>>('/api/v1/open/payments/create', {
         transactionId,
-        amount: formattedAmount.toString(),
+        amount: Math.round(amount).toString(),
         packageId
       });
 
@@ -202,11 +181,5 @@ export const api = {
       console.error('Failed to verify payment:', error);
       throw error;
     }
-  },
-
-  // Вспомогательный метод для очистки кэша
-  clearCache(): void {
-    packagesCache = {};
-    console.log('Packages cache cleared');
   }
 };
