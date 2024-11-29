@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { calculateRetailPrice } from '@/utils/price';
 
-const API_URL = 'https://api.sexystyle.site';  // URL вашего VPS
+const API_URL = 'https://api.sexystyle.site';
 
 export interface Package {
   id: string;
@@ -8,6 +9,7 @@ export interface Package {
   data: string;
   validity: string;
   price: number;
+  retailPrice?: number; // Добавляем поле для розничной цены
   location: string[];
   description: string;
   features: string[];
@@ -44,7 +46,10 @@ const apiClient = axios.create({
   timeout: 15000
 });
 
-// Логирование запросов и ответов
+// Кэш для пакетов
+let packagesCache: { [key: string]: Package[] } = {};
+
+// Логирование запросов
 apiClient.interceptors.request.use(
   (config) => {
     console.log('🚀 Request:', {
@@ -61,6 +66,7 @@ apiClient.interceptors.request.use(
   }
 );
 
+// Логирование ответов
 apiClient.interceptors.response.use(
   (response) => {
     console.log('✅ Response:', {
@@ -81,11 +87,16 @@ apiClient.interceptors.response.use(
   }
 );
 
-// API методы
 export const api = {
-  // Получение пакетов
   async getPackages(location?: string): Promise<Package[]> {
     try {
+      // Проверяем кэш
+      const cacheKey = location || 'all';
+      if (packagesCache[cacheKey]) {
+        console.log('Returning cached packages for:', cacheKey);
+        return packagesCache[cacheKey];
+      }
+
       const response = await apiClient.post<APIResponse<Package[]>>('/api/v1/open/package/list', {
         locationCode: location || '',
         type: 'BASE'
@@ -102,14 +113,22 @@ export const api = {
         packages = response.data.data;
       }
 
-      return packages;
+      // Добавляем розничные цены
+      const packagesWithRetail = packages.map(pkg => ({
+        ...pkg,
+        retailPrice: calculateRetailPrice(pkg.price / 100) * 100 // Конвертируем в центы и обратно
+      }));
+
+      // Сохраняем в кэш
+      packagesCache[cacheKey] = packagesWithRetail;
+
+      return packagesWithRetail;
     } catch (error) {
       console.error('Failed to fetch packages:', error);
       throw error;
     }
   },
 
-  // Создание заказа
   async createOrder(transactionId: string, packageCode: string): Promise<{orderNo: string}> {
     try {
       const response = await apiClient.post<APIResponse<{orderNo: string}>>('/api/v1/open/esim/order', {
@@ -120,12 +139,8 @@ export const api = {
         }]
       });
 
-      if (!response.data.success) {
+      if (!response.data.success || !response.data.data) {
         throw new Error(response.data.errorMsg || 'Failed to create order');
-      }
-
-      if (!response.data.data) {
-        throw new Error('Order data is missing from response');
       }
 
       return response.data.data;
@@ -135,17 +150,12 @@ export const api = {
     }
   },
 
-  // Получение статуса заказа
   async getOrderStatus(orderNo: string): Promise<{status: string; payment: boolean}> {
     try {
       const response = await apiClient.get<APIResponse<{status: string; payment: boolean}>>(`/api/v1/open/orders/${orderNo}`);
 
-      if (!response.data.success) {
+      if (!response.data.success || !response.data.data) {
         throw new Error(response.data.errorMsg || 'Failed to get order status');
-      }
-
-      if (!response.data.data) {
-        throw new Error('Status data is missing from response');
       }
 
       return response.data.data;
@@ -155,21 +165,19 @@ export const api = {
     }
   },
 
-  // Создание платежа
   async createPayment(transactionId: string, amount: number, packageId: string): Promise<TonPayment> {
     try {
+      // Убедимся, что amount передается в правильном формате
+      const formattedAmount = Math.round(amount); // Убираем десятичные знаки, так как работаем в центах
+      
       const response = await apiClient.post<APIResponse<TonPayment>>('/api/v1/open/payments/create', {
         transactionId,
-        amount: amount.toString(),
+        amount: formattedAmount.toString(),
         packageId
       });
 
-      if (!response.data.success) {
+      if (!response.data.success || !response.data.data) {
         throw new Error(response.data.errorMsg || 'Failed to create payment');
-      }
-
-      if (!response.data.data) {
-        throw new Error('Payment data is missing from response');
       }
 
       return response.data.data;
@@ -179,7 +187,6 @@ export const api = {
     }
   },
 
-  // Проверка платежа
   async verifyPayment(transactionId: string): Promise<boolean> {
     try {
       const response = await apiClient.post<APIResponse<{verified: boolean}>>('/api/v1/open/payments/verify', {
@@ -195,5 +202,11 @@ export const api = {
       console.error('Failed to verify payment:', error);
       throw error;
     }
+  },
+
+  // Вспомогательный метод для очистки кэша
+  clearCache(): void {
+    packagesCache = {};
+    console.log('Packages cache cleared');
   }
 };
