@@ -46,7 +46,6 @@ const apiClient = axios.create({
   timeout: 15000
 });
 
-// Request interceptor for logging
 apiClient.interceptors.request.use(
   (config) => {
     console.log('🚀 Request:', {
@@ -63,7 +62,6 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor for logging
 apiClient.interceptors.response.use(
   (response) => {
     console.log('✅ Response:', {
@@ -103,15 +101,33 @@ export const api = {
         packages = response.data.data;
       }
 
-      // Price comes from backend already in cents, so we don't need to multiply by 100
-      return packages.map(pkg => ({
-        ...pkg,
-        price: pkg.price, // Keep original price in cents
-        retailPrice: Math.round(calculateRetailPrice(pkg.price / 100)) * 100 // Convert to dollars for markup calculation, then back to cents
-      }));
+      return packages.map(pkg => {
+        // Конвертируем цену из нано в доллары
+        const priceInDollars = parseFloat((pkg.price / 10000).toFixed(2));
+        
+        // Вычисляем розничную цену с маржой
+        const retailPrice = calculateRetailPrice(priceInDollars);
+
+        return {
+          ...pkg,
+          price: priceInDollars,
+          retailPrice: retailPrice
+        };
+      });
     } catch (error) {
       console.error('Failed to fetch packages:', error);
       throw error;
+    }
+  },
+
+  async logPackageSelection(packageId: string): Promise<void> {
+    try {
+      await apiClient.post<APIResponse<any>>('/api/v1/open/package/log-selection', {
+        selectedId: packageId
+      });
+      console.log('Package selection logged:', packageId);
+    } catch (error) {
+      console.error('Failed to log package selection:', error);
     }
   },
 
@@ -138,9 +154,10 @@ export const api = {
 
   async createPayment(transactionId: string, amount: number, packageId: string): Promise<TonPayment> {
     try {
+      // Используем розничную цену для платежа
       const response = await apiClient.post<APIResponse<TonPayment>>('/api/v1/open/payments/create', {
         transactionId,
-        amount: amount.toString(), // amount is already in cents
+        amount: Math.round(amount * 100).toString(), // Конвертируем доллары в центы
         packageId
       });
 

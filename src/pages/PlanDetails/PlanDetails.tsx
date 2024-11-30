@@ -20,6 +20,7 @@ const PlanDetails: FC = () => {
       if (!planId) return;
 
       try {
+        setLoading(true);
         const packages = await api.getPackages();
         const matchingPlan = packages.find((p: Package) => p.id === planId);
         
@@ -39,31 +40,14 @@ const PlanDetails: FC = () => {
     loadPlan();
   }, [planId]);
 
-  const checkPaymentStatus = async (transactionId: string): Promise<boolean> => {
-    let attempts = 0;
-    const maxAttempts = 10;
-    const checkInterval = 3000;
-
-    while (attempts < maxAttempts) {
-      try {
-        const verified = await api.verifyPayment(transactionId);
-        if (verified) {
-          return true;
-        }
-        attempts++;
-        await new Promise(resolve => setTimeout(resolve, checkInterval));
-      } catch (error) {
-        console.error('Payment verification attempt failed:', error);
-      }
-    }
-    return false;
-  };
-
   const handlePurchase = async () => {
     if (!plan || processing) return;
     
     try {
       setProcessing(true);
+
+      // Log selected package
+      await api.logPackageSelection(plan.id);
       
       if (!tonConnectUI.connected) {
         await tonConnectUI.connectWallet();
@@ -72,9 +56,11 @@ const PlanDetails: FC = () => {
       }
 
       const transactionId = `purchase-${Date.now()}`;
-      
-      // Используем price вместо retailPrice
-      const payment = await api.createPayment(transactionId, plan.price, plan.id);
+      const payment = await api.createPayment(
+        transactionId,
+        plan.retailPrice || plan.price,
+        plan.id
+      );
 
       const transaction = {
         validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
@@ -91,16 +77,7 @@ const PlanDetails: FC = () => {
       
       if (result) {
         await api.createOrder(transactionId, plan.id);
-
-        toast.loading('Проверка оплаты...', { duration: 3000 });
-
-        const paymentVerified = await checkPaymentStatus(transactionId);
-
-        if (paymentVerified) {
-          toast.success('Оплата прошла успешно! Ваш eSIM будет доставлен в ближайшее время.');
-        } else {
-          toast.error('Не удалось подтвердить оплату. Пожалуйста, свяжитесь с поддержкой.');
-        }
+        toast.success('Оплата прошла успешно! Ваш eSIM будет доставлен в ближайшее время.');
       }
     } catch (error) {
       console.error('Purchase failed:', error);
@@ -142,7 +119,7 @@ const PlanDetails: FC = () => {
         <Section>
           <Cell
             before={<span className="text-2xl">{countryFlag}</span>}
-            after={formatPrice(plan.price)} // Используем price вместо retailPrice
+            after={formatPrice(plan.retailPrice || plan.price)}
             subtitle={`${plan.data} • ${plan.validity}`}
           >
             {plan.name}
@@ -208,7 +185,7 @@ const PlanDetails: FC = () => {
                     <span>Обработка...</span>
                   </div>
                 ) : (
-                  `Купить за ${formatPrice(plan.price)}` // Используем price вместо retailPrice
+                  `Купить за ${formatPrice(plan.retailPrice || plan.price)}`
                 )}
               </Button>
             </div>
