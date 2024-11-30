@@ -46,6 +46,7 @@ const apiClient = axios.create({
   timeout: 15000
 });
 
+// Request interceptor for logging
 apiClient.interceptors.request.use(
   (config) => {
     console.log('🚀 Request:', {
@@ -62,6 +63,7 @@ apiClient.interceptors.request.use(
   }
 );
 
+// Response interceptor for logging
 apiClient.interceptors.response.use(
   (response) => {
     console.log('✅ Response:', {
@@ -101,9 +103,11 @@ export const api = {
         packages = response.data.data;
       }
 
+      // Price comes from backend already in cents, so we don't need to multiply by 100
       return packages.map(pkg => ({
         ...pkg,
-        retailPrice: Math.round(calculateRetailPrice(pkg.price / 100) * 100)
+        price: pkg.price, // Keep original price in cents
+        retailPrice: Math.round(calculateRetailPrice(pkg.price / 100)) * 100 // Convert to dollars for markup calculation, then back to cents
       }));
     } catch (error) {
       console.error('Failed to fetch packages:', error);
@@ -132,26 +136,11 @@ export const api = {
     }
   },
 
-  async getOrderStatus(orderNo: string): Promise<{status: string; payment: boolean}> {
-    try {
-      const response = await apiClient.get<APIResponse<{status: string; payment: boolean}>>(`/api/v1/open/orders/${orderNo}`);
-
-      if (!response.data.success || !response.data.data) {
-        throw new Error(response.data.errorMsg || 'Failed to get order status');
-      }
-
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to get order status:', error);
-      throw error;
-    }
-  },
-
   async createPayment(transactionId: string, amount: number, packageId: string): Promise<TonPayment> {
     try {
       const response = await apiClient.post<APIResponse<TonPayment>>('/api/v1/open/payments/create', {
         transactionId,
-        amount: Math.round(amount).toString(),
+        amount: amount.toString(), // amount is already in cents
         packageId
       });
 
