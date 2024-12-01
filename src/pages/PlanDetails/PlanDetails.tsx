@@ -84,7 +84,7 @@ const PlanDetails: FC = () => {
         <Section>
           <Cell
             before={<span style={{ fontSize: '24px' }}>{countryFlag}</span>}
-            after={formatPrice(plan.retailPrice || plan.price)}
+            after={formatPrice(plan.price)}
             subtitle={`${plan.data} • ${plan.validity}`}
             multiline
           >
@@ -145,7 +145,7 @@ const PlanDetails: FC = () => {
                 stretched 
                 onClick={handleAddToCart}
               >
-                Добавить в корзину
+                Добавить в корзину за {formatPrice(plan.price)}
               </Button>
             </div>
           </Cell>

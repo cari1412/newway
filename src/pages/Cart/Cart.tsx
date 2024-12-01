@@ -38,7 +38,7 @@ export const Cart: FC = () => {
               subtitle={`${item.data} • ${item.validity}`}
               after={
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>{formatPrice(item.retailPrice || item.price)}</span>
+                  <span>{formatPrice(item.price)}</span>
                   <Button
                     size="s"
                     mode="outline"

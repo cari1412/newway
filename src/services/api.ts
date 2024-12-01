@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { calculateRetailPrice } from '@/utils/price';
 
 const API_URL = 'https://api.sexystyle.site';
 
@@ -9,7 +8,6 @@ export interface Package {
   data: string;
   validity: string;
   price: number;
-  retailPrice?: number;
   location: string[];
   description: string;
   features: string[];
@@ -94,26 +92,8 @@ export const api = {
         throw new Error(response.data.errorMsg || 'Failed to fetch packages');
       }
 
-      let packages: Package[] = [];
-      if (response.data.obj?.packageList) {
-        packages = response.data.obj.packageList;
-      } else if (response.data.data) {
-        packages = response.data.data;
-      }
-
-      return packages.map(pkg => {
-        // Конвертируем цену из нано в доллары
-        const priceInDollars = parseFloat((pkg.price / 10000).toFixed(2));
-        
-        // Вычисляем розничную цену с маржой
-        const retailPrice = calculateRetailPrice(priceInDollars);
-
-        return {
-          ...pkg,
-          price: priceInDollars,
-          retailPrice: retailPrice
-        };
-      });
+      // Возвращаем пакеты как есть, без дополнительных преобразований цены
+      return response.data.obj?.packageList || response.data.data || [];
     } catch (error) {
       console.error('Failed to fetch packages:', error);
       throw error;
@@ -154,7 +134,6 @@ export const api = {
 
   async createPayment(transactionId: string, amount: number, packageId: string): Promise<TonPayment> {
     try {
-      // Используем розничную цену для платежа
       const response = await apiClient.post<APIResponse<TonPayment>>('/api/v1/open/payments/create', {
         transactionId,
         amount: Math.round(amount * 100).toString(), // Конвертируем доллары в центы
