@@ -12,33 +12,28 @@ export const PRICE_RANGES: PriceRange[] = [
   { min: 50, max: Infinity, markup: 50 } // От $50 - маржа 50%
 ];
 
-export const calculateRetailPrice = (wholesalePrice: number): number => {
+export const calculateRetailPrice = (wholesalePriceInDollars: number): number => {
+  // Проверяем входную цену
+  if (!wholesalePriceInDollars || wholesalePriceInDollars <= 0) {
+    console.warn('Invalid wholesale price:', wholesalePriceInDollars);
+    return 0;
+  }
+
+  // Находим нужную наценку
   const range = PRICE_RANGES.find(
-    range => wholesalePrice >= range.min && wholesalePrice <= range.max
+    range => wholesalePriceInDollars >= range.min && wholesalePriceInDollars <= range.max
   );
+
   const markup = range ? range.markup : 50;
-  return Number((wholesalePrice * (1 + markup / 100)).toFixed(2));
-};
+  const retailPrice = wholesalePriceInDollars * (1 + markup / 100);
 
-export const formatPrice = (price: number): string => {
-  return `$${price.toFixed(2)}`;
-};
-
-export const getAppliedMarkup = (price: number): number => {
-  const range = PRICE_RANGES.find(
-    range => price >= range.min && price <= range.max
-  );
-  return range ? range.markup : 50;
-};
-
-// Вспомогательная функция для отладки
-export const debugPrice = (wholesalePrice: number): void => {
-  const markup = getAppliedMarkup(wholesalePrice);
-  const retail = calculateRetailPrice(wholesalePrice);
-  console.log({
-    wholesale: `$${wholesalePrice}`,
-    markup: `${markup}%`,
-    retail: `$${retail}`,
-    profit: `$${(retail - wholesalePrice).toFixed(2)}`
+  // Debug log
+  console.log('Price calculation:', {
+    wholesalePriceInDollars,
+    markup,
+    retailPrice: retailPrice.toFixed(2),
+    range: range ? `$${range.min}-$${range.max}` : 'default'
   });
+
+  return Number(retailPrice.toFixed(2));
 };

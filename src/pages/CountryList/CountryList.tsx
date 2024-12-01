@@ -38,18 +38,20 @@ const parseLocationToCountry = (packages: Package[]): Country[] => {
       const countryCode = locationCode.trim();
       if (!countryCode) return;
 
+      const displayPrice = pkg.retailPrice || pkg.price;
+
       if (!countryMap.has(countryCode)) {
         countryMap.set(countryCode, {
           id: countryCode,
           name: getCountryName(countryCode),
           flag: getFlagEmoji(countryCode),
           plansCount: 1,
-          startingPrice: pkg.price // Используем базовую цену
+          startingPrice: displayPrice
         });
       } else {
         const country = countryMap.get(countryCode)!;
         country.plansCount++;
-        country.startingPrice = Math.min(country.startingPrice, pkg.price);
+        country.startingPrice = Math.min(country.startingPrice, displayPrice);
       }
     });
   });
