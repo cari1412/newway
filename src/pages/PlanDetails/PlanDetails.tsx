@@ -1,19 +1,19 @@
+// pages/PlanDetails/PlanDetails.tsx
 import { Section, Cell, List, Button, Spinner } from '@telegram-apps/telegram-ui';
 import { FC, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Page } from '@/components/Page';
 import { api, type Package } from '@/services/api';
 import { formatPrice, getFlagEmoji, getNetworkTypeIcon } from '@/utils/formats';
-import { useTonConnectUI } from '@tonconnect/ui-react';
 import { toast } from 'react-hot-toast';
+import { useCart } from '@/hooks/useCart';
 
 const PlanDetails: FC = () => {
   const { planId } = useParams();
   const [plan, setPlan] = useState<Package | null>(null);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tonConnectUI] = useTonConnectUI();
+  const { addToCart } = useCart();
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -40,57 +40,22 @@ const PlanDetails: FC = () => {
     loadPlan();
   }, [planId]);
 
-  const handlePurchase = async () => {
-    if (!plan || processing) return;
+  const handleAddToCart = async () => {
+    if (!plan) return;
     
     try {
-      setProcessing(true);
-
-      // Log selected package
       await api.logPackageSelection(plan.id);
-      
-      if (!tonConnectUI.connected) {
-        await tonConnectUI.connectWallet();
-        setProcessing(false);
-        return;
-      }
-
-      const transactionId = `purchase-${Date.now()}`;
-      const payment = await api.createPayment(
-        transactionId,
-        plan.retailPrice || plan.price,
-        plan.id
-      );
-
-      const transaction = {
-        validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
-        messages: [
-          {
-            address: payment.address,
-            amount: payment.amount,
-            payload: payment.payload,
-          },
-        ],
-      };
-
-      const result = await tonConnectUI.sendTransaction(transaction);
-      
-      if (result) {
-        await api.createOrder(transactionId, plan.id);
-        toast.success('Оплата прошла успешно! Ваш eSIM будет доставлен в ближайшее время.');
-      }
+      addToCart(plan);
     } catch (error) {
-      console.error('Purchase failed:', error);
-      toast.error('Ошибка при оплате. Пожалуйста, попробуйте позже.');
-    } finally {
-      setProcessing(false);
+      console.error('Failed to add to cart:', error);
+      toast.error('Ошибка при добавлении в корзину');
     }
   };
 
   if (loading) {
     return (
       <Page>
-        <div className="flex justify-center p-5">
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
           <Spinner size="m" />
         </div>
       </Page>
@@ -118,9 +83,10 @@ const PlanDetails: FC = () => {
       <List>
         <Section>
           <Cell
-            before={<span className="text-2xl">{countryFlag}</span>}
+            before={<span style={{ fontSize: '24px' }}>{countryFlag}</span>}
             after={formatPrice(plan.retailPrice || plan.price)}
             subtitle={`${plan.data} • ${plan.validity}`}
+            multiline
           >
             {plan.name}
           </Cell>
@@ -131,9 +97,9 @@ const PlanDetails: FC = () => {
         </Section>
 
         <Section header="Особенности">
-          {features.length > 0 && (
+          {networkTypes && (
             <Cell
-              before={<span className="text-xl">🌐</span>}
+              before={<span style={{ fontSize: '20px' }}>🌐</span>}
               subtitle="Поддержка сетей"
               multiline
             >
@@ -143,7 +109,7 @@ const PlanDetails: FC = () => {
           {features.map((feature: string, index: number) => (
             <Cell
               key={index}
-              before={<span className="text-xl">{getNetworkTypeIcon(feature)}</span>}
+              before={<span style={{ fontSize: '20px' }}>{getNetworkTypeIcon(feature)}</span>}
               multiline
             >
               {feature}
@@ -155,7 +121,7 @@ const PlanDetails: FC = () => {
           {plan.location.map((countryCode: string, index: number) => (
             <Cell 
               key={index}
-              before={<span className="text-xl">{getFlagEmoji(countryCode)}</span>}
+              before={<span style={{ fontSize: '20px' }}>{getFlagEmoji(countryCode)}</span>}
             >
               {countryCode}
             </Cell>
@@ -163,7 +129,7 @@ const PlanDetails: FC = () => {
         </Section>
 
         <Section header="Инструкция по установке">
-          <Cell before="1️⃣">Оплатите eSIM</Cell>
+          <Cell before="1️⃣">Оформите заказ в корзине</Cell>
           <Cell before="2️⃣">Отсканируйте QR-код</Cell>
           <Cell before="3️⃣">Установите профиль eSIM</Cell>
           <Cell before="4️⃣">Включите передачу данных</Cell>
@@ -172,21 +138,14 @@ const PlanDetails: FC = () => {
 
         <Section>
           <Cell>
-            <div className="py-2">
+            <div style={{ padding: '8px 0' }}>
               <Button 
                 size="l" 
+                mode="filled"
                 stretched 
-                onClick={handlePurchase}
-                disabled={processing}
+                onClick={handleAddToCart}
               >
-                {processing ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Spinner size="s" />
-                    <span>Обработка...</span>
-                  </div>
-                ) : (
-                  `Купить за ${formatPrice(plan.retailPrice || plan.price)}`
-                )}
+                Добавить в корзину
               </Button>
             </div>
           </Cell>
