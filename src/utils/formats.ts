@@ -1,8 +1,6 @@
 // Базовое форматирование цен
 export const formatPrice = (price: number): string => {
-  if (!price) return '$0.00';
-  const priceInDollars = price / 100; // Конвертируем центы в доллары
-  return `$${priceInDollars.toFixed(2)}`;
+  return `$${price.toFixed(2)}`;
 };
 
 // Форматирование объема данных
