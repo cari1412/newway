@@ -19,8 +19,8 @@ export const Cart: FC = () => {
        const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
        const payment = await api.createPayment(transactionId, item.price, item.id);
        
-       toast.success(`Адрес для оплаты ${item.name}:\n${payment.address}`, {
-         duration: 10000,
+       toast.success(`Для оплаты перейдите по ссылке:\n${payment.tonUrl}`, {
+           duration: 15000
        });
      }
    } catch (error) {
