@@ -13,6 +13,8 @@ export interface Package {
   features: string[];
   smsStatus: number;
   operatorList: OperatorInfo[];
+  transactionId?: string;
+  paymentAddress?: string;
 }
 
 export interface OperatorInfo {
@@ -92,7 +94,6 @@ export const api = {
         throw new Error(response.data.errorMsg || 'Failed to fetch packages');
       }
 
-      // Возвращаем пакеты как есть, без дополнительных преобразований цены
       return response.data.obj?.packageList || response.data.data || [];
     } catch (error) {
       console.error('Failed to fetch packages:', error);
@@ -136,7 +137,7 @@ export const api = {
     try {
       const response = await apiClient.post<APIResponse<TonPayment>>('/api/v1/open/payments/create', {
         transactionId,
-        amount: Math.round(amount * 100).toString(), // Конвертируем доллары в центы
+        amount: Math.round(amount * 1000000000).toString(), // Конвертируем в наноТоны
         packageId
       });
 
