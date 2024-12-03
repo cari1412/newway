@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://api.sexystyle.site';
+const API_URL = 'https://web.sexystyle.site';
 
 export interface Package {
   id: string;
