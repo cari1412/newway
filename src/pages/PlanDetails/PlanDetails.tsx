@@ -13,7 +13,6 @@ const PlanDetails: FC = () => {
   const [plan, setPlan] = useState<Package | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [processingPayment, setProcessingPayment] = useState(false);
   const { addToCart } = useCart();
 
   useEffect(() => {
@@ -45,25 +44,11 @@ const PlanDetails: FC = () => {
     if (!plan) return;
     
     try {
-      setProcessingPayment(true);
-      const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const payment = await api.createPayment(transactionId, plan.price, plan.id);
-      
       await api.logPackageSelection(plan.id);
-      addToCart({
-        ...plan,
-        transactionId,
-        paymentAddress: payment.address
-      });
-      
-      toast.success('Скопируйте адрес для оплаты: ' + payment.address, {
-        duration: 10000,
-      });
+      addToCart(plan);
     } catch (error) {
-      console.error('Failed to process payment:', error);
-      toast.error('Ошибка при создании платежа');
-    } finally {
-      setProcessingPayment(false);
+      console.error('Failed to add to cart:', error);
+      toast.error('Ошибка при добавлении в корзину');
     }
   };
 
@@ -144,11 +129,11 @@ const PlanDetails: FC = () => {
         </Section>
 
         <Section header="Инструкция по установке">
-          <Cell before="1️⃣">Оформите заказ и получите адрес для оплаты</Cell>
-          <Cell before="2️⃣">Отправьте указанную сумму TON на полученный адрес</Cell>
-          <Cell before="3️⃣">Дождитесь подтверждения оплаты</Cell>
-          <Cell before="4️⃣">Установите профиль eSIM</Cell>
-          <Cell before="5️⃣">Включите передачу данных</Cell>
+          <Cell before="1️⃣">Оформите заказ в корзине</Cell>
+          <Cell before="2️⃣">Отсканируйте QR-код</Cell>
+          <Cell before="3️⃣">Установите профиль eSIM</Cell>
+          <Cell before="4️⃣">Включите передачу данных</Cell>
+          <Cell before="5️⃣">Готово к использованию!</Cell>
         </Section>
 
         <Section>
@@ -159,10 +144,8 @@ const PlanDetails: FC = () => {
                 mode="filled"
                 stretched 
                 onClick={handleAddToCart}
-                loading={processingPayment}
-                disabled={processingPayment}
               >
-                {processingPayment ? 'Создание платежа...' : `Оплатить ${formatPrice(plan.price)}`}
+                Добавить в корзину за {formatPrice(plan.price)}
               </Button>
             </div>
           </Cell>
