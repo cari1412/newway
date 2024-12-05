@@ -11,34 +11,32 @@ export const Cart: FC = () => {
    const [isProcessing, setIsProcessing] = useState(false);
 
    const handlePayment = async () => {
-       if (items.length === 0) return;
-       
-       try {
-           setIsProcessing(true);
-           for (const item of items) {
-               const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-               const payment = await api.createPayment(transactionId, item.price, item.id);
-               
-               if (payment.paymentDetails?.address) {
+        if (items.length === 0) return;
+    
+        try {
+            setIsProcessing(true);
+            for (const item of items) {
+                const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                const payment = await api.createPayment(transactionId, item.price, item.id);
+            
+                if (payment.paymentDetails) {
                    toast.success(
-                       `Для оплаты ${item.name}:\nАдрес: ${payment.paymentDetails.address}\nСумма: ${formatPrice(item.price)}`,
+                       `Для оплаты ${item.name}:\nСумма: ${payment.paymentDetails.amountTon} TON (${payment.paymentDetails.amountUsd} USD)`,
                        { duration: 15000 }
                    );
-               }
+                }
 
-               if (payment.deepLink) {
-                   toast.success(
-                       `Оплатить через TON кошелек: ${payment.deepLink}`,
-                       { duration: 15000 }
-                   );
-               }
-           }
-       } catch (error) {
-           console.error('Payment error:', error);
-           toast.error('Ошибка при создании платежа');
-       } finally {
-           setIsProcessing(false);
-       }
+            // Перенаправляем на страницу оплаты TonConsole
+                if (payment.payment_url) {
+                   window.location.href = payment.payment_url;
+                }
+            }
+        } catch (error) {
+            console.error('Payment error:', error);
+            toast.error('Ошибка при создании платежа');
+        } finally {
+            setIsProcessing(false);
+        }
    };
 
    if (items.length === 0) {

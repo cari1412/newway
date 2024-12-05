@@ -23,13 +23,14 @@ export interface OperatorInfo {
 }
 
 export interface TonPayment {
-  deepLink: string;
-  tonUrl: string;
+  payment_url: string; // URL для оплаты от TonConsole
+  deepLink?: string;   // Оставляем для обратной совместимости
+  tonUrl?: string;     // Оставляем для обратной совместимости
   paymentDetails: {
-    address: string;
     amount: string;
-    payload: string;
-    comment: string;
+    amountUsd: string;
+    amountTon: string;
+    tonRate: string;
   }
 }
 
