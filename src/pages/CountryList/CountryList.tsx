@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Section, Cell, List, Spinner } from '@telegram-apps/telegram-ui';
 import { Page } from '@/components/Page';
-import { api, type CountryData } from '@/services/api';
+import { api } from '@/services/api';
 import { getFlagEmoji, formatPrice, formatPlansCount } from '@/utils/formats';
 
 // Словарь названий стран
@@ -20,52 +20,119 @@ const countryNames: Record<string, string> = {
   DO: 'Доминиканская Республика',
 };
 
-// Интерфейс для отображения данных страны
-interface DisplayCountry extends CountryData {
+// Интерфейсы для типизации
+interface DisplayCountry {
+  locationCode: string;
   name: string;
-  flag: string;
+  minPrice: number;
+  plansCount: number;
 }
 
-export const CountryList: React.FC = () => {
+interface CacheData {
+  data: DisplayCountry[];
+  timestamp: number;
+}
+
+// Константы для кэширования
+const CACHE_KEY = 'countries_cache';
+const CACHE_EXPIRY = 5 * 60 * 1000; // 5 минут
+
+// Вспомогательные функции
+const getCachedData = (): DisplayCountry[] | null => {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+
+    const { data, timestamp }: CacheData = JSON.parse(cached);
+    if (Date.now() - timestamp > CACHE_EXPIRY) {
+      localStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+};
+
+const setCachedData = (data: DisplayCountry[]): void => {
+  try {
+    const cacheData: CacheData = {
+      data,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+  } catch (err) {
+    console.error('Cache save error:', err);
+  }
+};
+
+export const CountryList = () => {
   const navigate = useNavigate();
-  const [countries, setCountries] = useState<DisplayCountry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [countries, setCountries] = useState<DisplayCountry[]>(() => getCachedData() || []);
+  const [loading, setLoading] = useState(!countries.length);
   const [error, setError] = useState<string | null>(null);
 
+  // Загрузка данных о странах
   useEffect(() => {
-    const loadCountries = async () => {
+    const loadCountries = async (): Promise<void> => {
+      if (countries.length) return;
+
       try {
         setLoading(true);
-        const countryData = await api.getCountries();
+        const data = await api.getPackages();
         
-        // Преобразуем данные для отображения
-        const displayCountries = countryData.map(country => ({
-          ...country,
-          name: countryNames[country.locationCode] || country.locationCode,
-          flag: getFlagEmoji(country.locationCode)
-        }));
+        // Преобразуем и группируем данные по странам
+        const countryMap = new Map<string, DisplayCountry>();
+        
+        data.forEach(pkg => {
+          pkg.location.forEach((locationCode: string) => {
+            const code = locationCode.trim();
+            if (!code) return;
 
-        // Сортируем по имени
-        const sortedCountries = displayCountries.sort((a, b) => 
-          a.name.localeCompare(b.name)
-        );
+            if (!countryMap.has(code)) {
+              countryMap.set(code, {
+                locationCode: code,
+                name: countryNames[code] || code,
+                minPrice: pkg.price,
+                plansCount: 1
+              });
+            } else {
+              const country = countryMap.get(code)!;
+              country.plansCount++;
+              if (pkg.price < country.minPrice) {
+                country.minPrice = pkg.price;
+              }
+            }
+          });
+        });
+
+        // Преобразуем Map в массив и сортируем по имени
+        const sortedCountries = Array.from(countryMap.values())
+          .sort((a, b) => a.name.localeCompare(b.name));
 
         setCountries(sortedCountries);
+        setCachedData(sortedCountries);
         setError(null);
+
       } catch (err) {
         console.error('Failed to load countries:', err);
-        setError('Ошибка загрузки данных. Пожалуйста, попробуйте позже.');
+        setError('Ошибка загрузки данных. Пожалуйста, попробуйте позже');
       } finally {
         setLoading(false);
       }
     };
 
     loadCountries();
-  }, []);
+  }, [countries.length]);
 
-  // Мемоизируем отрендеренный список стран
+  // Обработчик перехода к стране
+  const handleCountryClick = (locationCode: string): void => {
+    navigate(`/country/${locationCode}`);
+  };
+
+  // Мемоизированный рендер списка
   const renderedCountries = useMemo(() => {
-    if (loading) {
+    if (loading && !countries.length) {
       return (
         <div className="flex justify-center p-4">
           <Spinner size="m" />
@@ -81,7 +148,7 @@ export const CountryList: React.FC = () => {
       );
     }
 
-    if (countries.length === 0) {
+    if (!countries.length) {
       return (
         <Section header="Нет данных">
           <Cell>Список стран пуст. Пожалуйста, попробуйте позже.</Cell>
@@ -97,10 +164,10 @@ export const CountryList: React.FC = () => {
         {countries.map((country) => (
           <Cell
             key={country.locationCode}
-            onClick={() => navigate(`/country/${country.locationCode}`)}
+            onClick={() => handleCountryClick(country.locationCode)}
             before={
               <span className="text-2xl inline-block min-w-8">
-                {country.flag}
+                {getFlagEmoji(country.locationCode)}
               </span>
             }
             subtitle={`От ${formatPrice(country.minPrice)} • ${formatPlansCount(country.plansCount)}`}
