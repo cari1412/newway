@@ -2,17 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Section, Cell, List, Spinner } from '@telegram-apps/telegram-ui';
 import { Page } from '@/components/Page';
-import { api } from '@/services/api';
+import { api, type CountryData } from '@/services/api';
 import { getFlagEmoji, formatPrice, formatPlansCount } from '@/utils/formats';
-
-// Типы данных оптимизированы для списка стран
-interface CountryData {
-  id: string;
-  name: string;
-  flag: string;
-  startingPrice: number;
-  plansCount: number;
-}
 
 // Словарь названий стран
 const countryNames: Record<string, string> = {
@@ -29,9 +20,15 @@ const countryNames: Record<string, string> = {
   DO: 'Доминиканская Республика',
 };
 
+// Интерфейс для отображения данных страны
+interface DisplayCountry extends CountryData {
+  name: string;
+  flag: string;
+}
+
 export const CountryList: React.FC = () => {
   const navigate = useNavigate();
-  const [countries, setCountries] = useState<CountryData[]>([]);
+  const [countries, setCountries] = useState<DisplayCountry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,35 +36,19 @@ export const CountryList: React.FC = () => {
     const loadCountries = async () => {
       try {
         setLoading(true);
-        // Используем пустые параметры для получения только базового списка
-        const response = await api.getPackages();
+        const countryData = await api.getCountries();
         
-        // Создаем Map для группировки по странам
-        const countryMap = new Map<string, CountryData>();
-        
-        response.forEach(pkg => {
-          pkg.location.forEach((locationCode: string) => {
-            const countryCode = locationCode.trim();
-            if (!countryCode) return;
+        // Преобразуем данные для отображения
+        const displayCountries = countryData.map(country => ({
+          ...country,
+          name: countryNames[country.locationCode] || country.locationCode,
+          flag: getFlagEmoji(country.locationCode)
+        }));
 
-            if (!countryMap.has(countryCode)) {
-              countryMap.set(countryCode, {
-                id: countryCode,
-                name: countryNames[countryCode] || countryCode,
-                flag: getFlagEmoji(countryCode),
-                plansCount: 1,
-                startingPrice: pkg.price
-              });
-            } else {
-              const country = countryMap.get(countryCode)!;
-              country.plansCount++;
-              country.startingPrice = Math.min(country.startingPrice, pkg.price);
-            }
-          });
-        });
-
-        const sortedCountries = Array.from(countryMap.values())
-          .sort((a, b) => a.name.localeCompare(b.name));
+        // Сортируем по имени
+        const sortedCountries = displayCountries.sort((a, b) => 
+          a.name.localeCompare(b.name)
+        );
 
         setCountries(sortedCountries);
         setError(null);
@@ -115,12 +96,14 @@ export const CountryList: React.FC = () => {
       >
         {countries.map((country) => (
           <Cell
-            key={country.id}
-            onClick={() => navigate(`/country/${country.id}`)}
+            key={country.locationCode}
+            onClick={() => navigate(`/country/${country.locationCode}`)}
             before={
-              <span className="text-2xl">{country.flag}</span>
+              <span className="text-2xl inline-block min-w-8">
+                {country.flag}
+              </span>
             }
-            subtitle={`От ${formatPrice(country.startingPrice)} • ${formatPlansCount(country.plansCount)}`}
+            subtitle={`От ${formatPrice(country.minPrice)} • ${formatPlansCount(country.plansCount)}`}
             multiline
           >
             {country.name}
@@ -128,7 +111,7 @@ export const CountryList: React.FC = () => {
         ))}
       </Section>
     );
-  }, [countries, loading, error]);
+  }, [countries, loading, error, navigate]);
 
   return (
     <Page back={false}>
