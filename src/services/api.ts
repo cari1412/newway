@@ -169,11 +169,18 @@ export const api = {
     asset: string = 'TON'
   ): Promise<TonPayment | CryptoPayment> {
     try {
+      let payloadAmount: string;
+      
+      if (paymentMethod === 'ton') {
+        // Преобразуем в строку сразу, избегая BigInt
+        payloadAmount = (Math.round(amount * 1000000000)).toString();
+      } else {
+        payloadAmount = amount.toString();
+      }
+
       const response = await apiClient.post<APIResponse<TonPayment | CryptoPayment>>('/api/v1/open/payments/create', {
         transactionId,
-        amount: paymentMethod === 'ton' 
-          ? Math.round(amount * 1000000000).toString() 
-          : amount.toString(),
+        amount: payloadAmount,
         packageId,
         paymentMethod,
         asset
@@ -218,7 +225,6 @@ export const api = {
       });
     } catch (error) {
       console.error('Failed to log package selection:', error);
-      // Не выбрасываем ошибку, так как это некритичная операция
     }
   },
 
