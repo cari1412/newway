@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const API_URL = 'https://web.sexystyle.site';
 
+// Types
 export interface Package {
   id: string;
   name: string;
@@ -57,6 +58,19 @@ export interface TonPayment {
     tonRate: string;
   }
 }
+
+export interface CryptoPayment {
+  bot_invoice_url: string;
+  mini_app_invoice_url: string;
+  web_app_invoice_url: string;
+  invoice_id: number;
+  status: string;
+  hash: string;
+  asset: string;
+  amount: string;
+}
+
+export type PaymentMethod = 'ton' | 'crypto';
 
 interface APIResponse<T> {
   success: boolean;
@@ -147,14 +161,64 @@ export const api = {
     }
   },
 
+  async createPayment(
+    transactionId: string, 
+    amount: number, 
+    packageId: string,
+    paymentMethod: PaymentMethod = 'ton',
+    asset: string = 'TON'
+  ): Promise<TonPayment | CryptoPayment> {
+    try {
+      const response = await apiClient.post<APIResponse<TonPayment | CryptoPayment>>('/api/v1/open/payments/create', {
+        transactionId,
+        amount: paymentMethod === 'ton' 
+          ? Math.round(amount * 1000000000).toString() 
+          : amount.toString(),
+        packageId,
+        paymentMethod,
+        asset
+      });
+
+      if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.errorMsg || 'Failed to create payment');
+      }
+
+      return response.data.data;
+    } catch (error) {
+      console.error('Failed to create payment:', error);
+      throw error;
+    }
+  },
+
+  async verifyPayment(
+    transactionId: string,
+    paymentMethod: PaymentMethod = 'ton'
+  ): Promise<boolean> {
+    try {
+      const response = await apiClient.post<APIResponse<{verified: boolean}>>('/api/v1/open/payments/verify', {
+        transactionId,
+        paymentMethod
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.errorMsg || 'Failed to verify payment');
+      }
+
+      return response.data.data?.verified || false;
+    } catch (error) {
+      console.error('Failed to verify payment:', error);
+      throw error;
+    }
+  },
+
   async logPackageSelection(packageId: string): Promise<void> {
     try {
       await apiClient.post<APIResponse<any>>('/api/v1/open/package/log-selection', {
         selectedId: packageId
       });
-      console.log('Package selection logged:', packageId);
     } catch (error) {
       console.error('Failed to log package selection:', error);
+      // Не выбрасываем ошибку, так как это некритичная операция
     }
   },
 
@@ -175,42 +239,6 @@ export const api = {
       return response.data.data;
     } catch (error) {
       console.error('Failed to create order:', error);
-      throw error;
-    }
-  },
-
-  async createPayment(transactionId: string, amount: number, packageId: string): Promise<TonPayment> {
-    try {
-      const response = await apiClient.post<APIResponse<TonPayment>>('/api/v1/open/payments/create', {
-        transactionId,
-        amount: Math.round(amount * 1000000000).toString(),
-        packageId
-      });
-
-      if (!response.data.success || !response.data.data) {
-        throw new Error(response.data.errorMsg || 'Failed to create payment');
-      }
-
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to create payment:', error);
-      throw error;
-    }
-  },
-
-  async verifyPayment(transactionId: string): Promise<boolean> {
-    try {
-      const response = await apiClient.post<APIResponse<{verified: boolean}>>('/api/v1/open/payments/verify', {
-        transactionId
-      });
-
-      if (!response.data.success) {
-        throw new Error(response.data.errorMsg || 'Failed to verify payment');
-      }
-
-      return response.data.data?.verified || false;
-    } catch (error) {
-      console.error('Failed to verify payment:', error);
       throw error;
     }
   }
