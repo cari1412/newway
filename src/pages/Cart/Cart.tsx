@@ -2,24 +2,13 @@ import React from 'react';
 import { Section, Cell, List, Button } from '@telegram-apps/telegram-ui';
 import { useCart } from '@/hooks/useCart';
 import { formatPrice } from '@/utils/formats';
-import { api } from '@/services/api';
+import { api, type PaymentParams } from '@/services/api';
 import { toast } from 'react-hot-toast';
 
 type Asset = {
   value: string;
   label: string;
 };
-
-type PaymentMethod = 'ton' | 'crypto';
-
-interface PaymentData {
-  transactionId: string;
-  packageId: string;
-  amount: number;
-  asset: string;
-  paymentMethod: PaymentMethod;
-  currency_type: 'crypto';
-}
 
 const SUPPORTED_ASSETS: Asset[] = [
   { value: 'TON', label: 'TON' },
@@ -54,27 +43,20 @@ export const Cart = () => {
       for (const item of items) {
         const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         
-        const paymentData: PaymentData = {
+        const paymentData: PaymentParams = {
           transactionId,
           packageId: item.id,
-          amount: Number(item.price),
+          amount: item.price.toString(),
           asset: selectedAsset,
           paymentMethod: selectedAsset === 'TON' ? 'ton' : 'crypto',
           currency_type: 'crypto'
         };
 
-        console.log('Debug - Selected Asset:', selectedAsset);
-        console.log('Debug - Payment Data:', paymentData);
-        
-        const payment = await api.createPayment(
-          paymentData.transactionId,
-          paymentData.amount,
-          paymentData.packageId,
-          paymentData.asset,
-          paymentData.paymentMethod
-        );
+        console.log('Creating payment with params:', paymentData);
 
-        console.log('Payment response:', payment);
+        const payment = await api.createPayment(paymentData);
+
+        console.log('Payment created:', payment);
 
         if ('payment_url' in payment) {
           window.location.href = payment.payment_url;
@@ -102,7 +84,7 @@ export const Cart = () => {
   };
 
   const handleAssetSelect = (assetValue: string) => {
-    console.log('Debug - Asset selected:', assetValue);
+    console.log('Selected asset:', assetValue);
     setSelectedAsset(assetValue);
   };
 

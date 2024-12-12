@@ -4,7 +4,15 @@ const API_URL = 'https://web.sexystyle.site';
 
 export type PaymentMethod = 'ton' | 'crypto';
 
-// Types
+export interface PaymentParams {
+  transactionId: string;
+  packageId: string;
+  amount: string | number;
+  asset: string;
+  paymentMethod: PaymentMethod;
+  currency_type: 'crypto';
+}
+
 export interface Package {
   id: string;
   name: string;
@@ -81,26 +89,10 @@ const apiClient = axios.create({
   timeout: 15000
 });
 
-// Request interceptor for logging
-apiClient.interceptors.request.use(
-  (config) => {
-    console.log('🚀 API Request:', {
-      url: config.url,
-      method: config.method,
-      data: config.data
-    });
-    return config;
-  },
-  (error) => {
-    console.error('❌ API Request Error:', error);
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor for logging
+// Response interceptor
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('✅ API Response:', {
+    console.log('✅ Response:', {
       url: response.config.url,
       status: response.status,
       data: response.data
@@ -108,7 +100,7 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('❌ API Response Error:', {
+    console.error('❌ Response Error:', {
       url: error.config?.url,
       message: error.message,
       data: error.response?.data
@@ -118,33 +110,27 @@ apiClient.interceptors.response.use(
 );
 
 export const api = {
-  async createPayment(
-    transactionId: string,
-    amount: number,
-    packageId: string,
-    asset: string,
-    paymentMethod: PaymentMethod
-  ) {
-    console.log('Debug - createPayment called with:', {
-      transactionId,
-      amount,
-      packageId,
-      asset,
-      paymentMethod
-    });
+  async createPayment(params: PaymentParams): Promise<TonPayment | CryptoPayment> {
     try {
-      const payload = {
+      const { transactionId, amount, packageId, asset, paymentMethod } = params;
+      
+      console.log('Creating payment with params:', {
+        transactionId,
+        packageId,
+        amount,
+        asset,
+        paymentMethod,
+        currency_type: 'crypto'
+      });
+
+      const response = await apiClient.post('/api/v1/open/payments/create', {
         transactionId,
         packageId,
         amount: amount.toString(),
         asset,
         paymentMethod,
         currency_type: 'crypto'
-      };
-
-      console.log('Creating payment with payload:', payload);
-
-      const response = await apiClient.post('/api/v1/open/payments/create', payload);
+      });
 
       if (!response.data.success) {
         throw new Error(response.data.errorMsg || 'Failed to create payment');
