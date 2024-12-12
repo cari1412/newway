@@ -37,12 +37,13 @@ export const Cart: React.FC = () => {
       for (const item of items) {
         const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         
+        // Передаем правильные параметры для создания платежа
         const payment = await api.createPayment(
           transactionId,
           item.price,
           item.id,
-          'crypto',
-          selectedAsset
+          'crypto',  // Используем cryptocurrency как метод оплаты
+          selectedAsset // Передаем выбранный актив
         );
 
         if ('payment_url' in payment) {
@@ -109,29 +110,30 @@ export const Cart: React.FC = () => {
 
         <Section header="Способ оплаты">
           <Cell>
-            <div className="w-full">
-              <label className="block mb-2 text-sm text-gray-600">
+            <div className="w-full space-y-2">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
                 Выберите криптовалюту для оплаты:
-              </label>
-              <select
-                value={selectedAsset}
-                onChange={handleAssetChange}
-                className="w-full p-3 rounded-lg bg-white border border-gray-200"
-                style={{
-                  appearance: 'none',
-                  backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22currentColor%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E")',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 8px center',
-                  backgroundSize: '16px',
-                  paddingRight: '32px'
-                }}
-              >
-                {SUPPORTED_ASSETS.map(asset => (
-                  <option key={asset.value} value={asset.value}>
-                    {asset.label}
-                  </option>
-                ))}
-              </select>
+              </div>
+              <div className="relative">
+                <select
+                  value={selectedAsset}
+                  onChange={handleAssetChange}
+                  className="w-full p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl appearance-none focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 text-base"
+                  style={{
+                    backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22currentColor%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E")',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 8px center',
+                    backgroundSize: '16px',
+                    paddingRight: '32px'
+                  }}
+                >
+                  {SUPPORTED_ASSETS.map(asset => (
+                    <option key={asset.value} value={asset.value}>
+                      {asset.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </Cell>
         </Section>
