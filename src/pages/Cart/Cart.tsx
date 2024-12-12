@@ -3,31 +3,30 @@ import { Section, Cell, List, Button } from '@telegram-apps/telegram-ui';
 import { Page } from '@/components/Page';
 import { useCart } from '@/hooks/useCart';
 import { formatPrice } from '@/utils/formats';
-import { api, PaymentMethod } from '@/services/api';
+import { api } from '@/services/api';
 import { toast } from 'react-hot-toast';
 
-interface PaymentOption {
-  value: PaymentMethod;
-  label: string;
-}
-
-const paymentOptions: PaymentOption[] = [
-  { value: 'ton', label: 'TON' },
-  { value: 'crypto', label: 'Crypto Pay' }
-];
-
-const cryptoAssets = [
+// Поддерживаемые криптовалюты
+const SUPPORTED_ASSETS = [
   { value: 'TON', label: 'TON' },
   { value: 'USDT', label: 'USDT' },
   { value: 'BTC', label: 'Bitcoin' },
-  { value: 'ETH', label: 'Ethereum' }
+  { value: 'ETH', label: 'Ethereum' },
+  { value: 'LTC', label: 'Litecoin' },
+  { value: 'BNB', label: 'BNB' },
+  { value: 'TRX', label: 'TRON' },
+  { value: 'USDC', label: 'USDC' }
 ];
 
 export const Cart: React.FC = () => {
   const { items, removeFromCart, getTotalPrice } = useCart();
   const [isProcessing, setIsProcessing] = React.useState(false);
-  const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('ton');
-  const [cryptoAsset, setCryptoAsset] = React.useState('TON');
+  const [selectedAsset, setSelectedAsset] = React.useState('TON');
+
+  const handleAssetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setSelectedAsset(value);
+  };
 
   const handlePayment = async () => {
     if (items.length === 0) return;
@@ -42,15 +41,13 @@ export const Cart: React.FC = () => {
           transactionId,
           item.price,
           item.id,
-          paymentMethod,
-          cryptoAsset
+          'crypto',
+          selectedAsset
         );
 
         if ('payment_url' in payment) {
-          // TON payment
           window.location.href = payment.payment_url;
         } else if ('bot_invoice_url' in payment) {
-          // Crypto Pay payment
           const isTelegramWebApp = window.Telegram?.WebApp;
           const paymentUrl = isTelegramWebApp 
             ? payment.mini_app_invoice_url 
@@ -92,7 +89,7 @@ export const Cart: React.FC = () => {
               key={item.id}
               subtitle={`${item.data} • ${item.validity}`}
               after={
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="flex items-center gap-2">
                   <span>{formatPrice(item.price)}</span>
                   <Button
                     size="s"
@@ -112,44 +109,31 @@ export const Cart: React.FC = () => {
 
         <Section header="Способ оплаты">
           <Cell>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-              style={{
-                width: '100%',
-                padding: '8px',
-                borderRadius: '8px',
-                border: '1px solid #ddd'
-              }}
-            >
-              {paymentOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </Cell>
-          
-          {paymentMethod === 'crypto' && (
-            <Cell>
+            <div className="w-full">
+              <label className="block mb-2 text-sm text-gray-600">
+                Выберите криптовалюту для оплаты:
+              </label>
               <select
-                value={cryptoAsset}
-                onChange={(e) => setCryptoAsset(e.target.value)}
+                value={selectedAsset}
+                onChange={handleAssetChange}
+                className="w-full p-3 rounded-lg bg-white border border-gray-200"
                 style={{
-                  width: '100%',
-                  padding: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid #ddd'
+                  appearance: 'none',
+                  backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22currentColor%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E")',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 8px center',
+                  backgroundSize: '16px',
+                  paddingRight: '32px'
                 }}
               >
-                {cryptoAssets.map(asset => (
+                {SUPPORTED_ASSETS.map(asset => (
                   <option key={asset.value} value={asset.value}>
                     {asset.label}
                   </option>
                 ))}
               </select>
-            </Cell>
-          )}
+            </div>
+          </Cell>
         </Section>
 
         <Section>
@@ -157,7 +141,7 @@ export const Cart: React.FC = () => {
             <strong>Итого</strong>
           </Cell>
           <Cell>
-            <div style={{ padding: '8px 0' }}>
+            <div className="p-2">
               <Button
                 size="l"
                 mode="filled"
