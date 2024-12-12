@@ -38,12 +38,20 @@ export const Cart: React.FC = () => {
         const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         
         // Передаем правильные параметры для создания платежа
+        console.log('Sending payment request:', {
+          transactionId,
+          amount: item.price,
+          packageId: item.id,
+          paymentMethod: 'crypto',
+          asset: selectedAsset
+        });
+        
         const payment = await api.createPayment(
           transactionId,
           item.price,
           item.id,
-          'crypto',  // Используем cryptocurrency как метод оплаты
-          selectedAsset // Передаем выбранный актив
+          selectedAsset, // Первым передаем asset
+          'crypto'  // Вторым paymentMethod
         );
 
         if ('payment_url' in payment) {

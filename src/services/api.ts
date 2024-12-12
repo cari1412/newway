@@ -83,6 +83,7 @@ interface APIResponse<T> {
   };
 }
 
+// API Client setup
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
@@ -91,6 +92,7 @@ const apiClient = axios.create({
   timeout: 15000
 });
 
+// Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
     console.log('🚀 Request:', {
@@ -107,6 +109,7 @@ apiClient.interceptors.request.use(
   }
 );
 
+// Response interceptor
 apiClient.interceptors.response.use(
   (response) => {
     console.log('✅ Response:', {
@@ -127,6 +130,7 @@ apiClient.interceptors.response.use(
   }
 );
 
+// API Methods
 export const api = {
   async getPackages(location?: string): Promise<Package[]> {
     try {
@@ -162,28 +166,27 @@ export const api = {
   },
 
   async createPayment(
-    transactionId: string, 
-    amount: number, 
+    transactionId: string,
+    amount: number,
     packageId: string,
-    paymentMethod: PaymentMethod = 'ton',
-    asset: string = 'TON'
+    asset: string,
+    paymentMethod: PaymentMethod = 'crypto'
   ): Promise<TonPayment | CryptoPayment> {
     try {
-      let payloadAmount: string;
-      
-      if (paymentMethod === 'ton') {
-        // Преобразуем в строку сразу, избегая BigInt
-        payloadAmount = (Math.round(amount * 1000000000)).toString();
-      } else {
-        payloadAmount = amount.toString();
-      }
+      console.log('Creating payment:', {
+        transactionId,
+        amount,
+        packageId,
+        asset,
+        paymentMethod
+      });
 
       const response = await apiClient.post<APIResponse<TonPayment | CryptoPayment>>('/api/v1/open/payments/create', {
         transactionId,
-        amount: payloadAmount,
         packageId,
-        paymentMethod,
-        asset
+        amount: amount.toString(),
+        asset,
+        paymentMethod
       });
 
       if (!response.data.success || !response.data.data) {
@@ -199,7 +202,7 @@ export const api = {
 
   async verifyPayment(
     transactionId: string,
-    paymentMethod: PaymentMethod = 'ton'
+    paymentMethod: PaymentMethod = 'crypto'
   ): Promise<boolean> {
     try {
       const response = await apiClient.post<APIResponse<{verified: boolean}>>('/api/v1/open/payments/verify', {
