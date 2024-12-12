@@ -125,6 +125,13 @@ export const api = {
     asset: string,
     paymentMethod: PaymentMethod
   ) {
+    console.log('Debug - createPayment called with:', {
+      transactionId,
+      amount,
+      packageId,
+      asset,
+      paymentMethod
+    });
     try {
       const payload = {
         transactionId,

@@ -18,6 +18,7 @@ interface PaymentData {
   amount: number;
   asset: string;
   paymentMethod: PaymentMethod;
+  currency_type: 'crypto';
 }
 
 const SUPPORTED_ASSETS: Asset[] = [
@@ -37,7 +38,15 @@ export const Cart = () => {
   const [selectedAsset, setSelectedAsset] = React.useState(SUPPORTED_ASSETS[0].value);
 
   const handlePayment = async () => {
-    if (items.length === 0 || !selectedAsset) return;
+    if (items.length === 0) {
+      toast.error('Корзина пуста');
+      return;
+    }
+
+    if (!selectedAsset) {
+      toast.error('Выберите криптовалюту для оплаты');
+      return;
+    }
     
     try {
       setIsProcessing(true);
@@ -48,12 +57,14 @@ export const Cart = () => {
         const paymentData: PaymentData = {
           transactionId,
           packageId: item.id,
-          amount: item.price,
+          amount: Number(item.price),
           asset: selectedAsset,
-          paymentMethod: selectedAsset === 'TON' ? 'ton' : 'crypto'
+          paymentMethod: selectedAsset === 'TON' ? 'ton' : 'crypto',
+          currency_type: 'crypto'
         };
 
-        console.log('Creating payment with params:', paymentData);
+        console.log('Debug - Selected Asset:', selectedAsset);
+        console.log('Debug - Payment Data:', paymentData);
         
         const payment = await api.createPayment(
           paymentData.transactionId,
@@ -63,7 +74,7 @@ export const Cart = () => {
           paymentData.paymentMethod
         );
 
-        console.log('Payment created:', payment);
+        console.log('Payment response:', payment);
 
         if ('payment_url' in payment) {
           window.location.href = payment.payment_url;
@@ -91,7 +102,7 @@ export const Cart = () => {
   };
 
   const handleAssetSelect = (assetValue: string) => {
-    console.log('Selected asset:', assetValue);
+    console.log('Debug - Asset selected:', assetValue);
     setSelectedAsset(assetValue);
   };
 
@@ -147,6 +158,11 @@ export const Cart = () => {
         </Section>
 
         <Section>
+          <Cell>
+            <div className="text-sm text-gray-400">
+              Выбрана валюта: {SUPPORTED_ASSETS.find(a => a.value === selectedAsset)?.label || 'Не выбрана'}
+            </div>
+          </Cell>
           <Cell after={formatPrice(getTotalPrice())}>
             <strong>Итого</strong>
           </Cell>
