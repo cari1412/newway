@@ -2,6 +2,8 @@ import axios from 'axios';
 
 const API_URL = 'https://web.sexystyle.site';
 
+export type PaymentMethod = 'ton' | 'crypto';
+
 // Types
 export interface Package {
   id: string;
@@ -70,19 +72,6 @@ export interface CryptoPayment {
   amount: string;
 }
 
-export type PaymentMethod = 'ton' | 'crypto';
-
-interface APIResponse<T> {
-  success: boolean;
-  errorCode: string | null;
-  errorMsg: string | null;
-  data?: T;
-  obj?: {
-    packageList?: T;
-    countries?: T;
-  };
-}
-
 // API Client setup
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -92,27 +81,26 @@ const apiClient = axios.create({
   timeout: 15000
 });
 
-// Request interceptor
+// Request interceptor for logging
 apiClient.interceptors.request.use(
   (config) => {
-    console.log('🚀 Request:', {
+    console.log('🚀 API Request:', {
       url: config.url,
       method: config.method,
-      params: config.params,
       data: config.data
     });
     return config;
   },
   (error) => {
-    console.error('❌ Request Error:', error);
+    console.error('❌ API Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor
+// Response interceptor for logging
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('✅ Response:', {
+    console.log('✅ API Response:', {
       url: response.config.url,
       status: response.status,
       data: response.data
@@ -120,21 +108,51 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('❌ Response Error:', {
+    console.error('❌ API Response Error:', {
       url: error.config?.url,
       message: error.message,
-      status: error.response?.status,
       data: error.response?.data
     });
     return Promise.reject(error);
   }
 );
 
-// API Methods
 export const api = {
+  async createPayment(
+    transactionId: string,
+    amount: number,
+    packageId: string,
+    asset: string,
+    paymentMethod: PaymentMethod
+  ) {
+    try {
+      const payload = {
+        transactionId,
+        packageId,
+        amount: amount.toString(),
+        asset,
+        paymentMethod,
+        currency_type: 'crypto'
+      };
+
+      console.log('Creating payment with payload:', payload);
+
+      const response = await apiClient.post('/api/v1/open/payments/create', payload);
+
+      if (!response.data.success) {
+        throw new Error(response.data.errorMsg || 'Failed to create payment');
+      }
+
+      return response.data.data;
+    } catch (error) {
+      console.error('Payment creation failed:', error);
+      throw error;
+    }
+  },
+
   async getPackages(location?: string): Promise<Package[]> {
     try {
-      const response = await apiClient.post<APIResponse<Package[]>>('/api/v1/open/package/list', {
+      const response = await apiClient.post('/api/v1/open/package/list', {
         locationCode: location || '',
         type: 'BASE'
       });
@@ -143,59 +161,9 @@ export const api = {
         throw new Error(response.data.errorMsg || 'Failed to fetch packages');
       }
 
-      return response.data.obj?.packageList || response.data.data || [];
+      return response.data.obj?.packageList || [];
     } catch (error) {
       console.error('Failed to fetch packages:', error);
-      throw error;
-    }
-  },
-
-  async getCountries(): Promise<CountryData[]> {
-    try {
-      const response = await apiClient.post<APIResponse<CountryData[]>>('/api/v1/open/package/countries');
-      
-      if (!response.data.success) {
-        throw new Error(response.data.errorMsg || 'Failed to fetch countries');
-      }
-
-      return response.data.obj?.countries || [];
-    } catch (error) {
-      console.error('Failed to fetch countries:', error);
-      throw error;
-    }
-  },
-
-  async createPayment(
-    transactionId: string,
-    amount: number,
-    packageId: string,
-    asset: string,
-    paymentMethod: PaymentMethod = 'crypto'
-  ): Promise<TonPayment | CryptoPayment> {
-    try {
-      console.log('Creating payment:', {
-        transactionId,
-        amount,
-        packageId,
-        asset,
-        paymentMethod
-      });
-
-      const response = await apiClient.post<APIResponse<TonPayment | CryptoPayment>>('/api/v1/open/payments/create', {
-        transactionId,
-        packageId,
-        amount: amount.toString(),
-        asset,
-        paymentMethod
-      });
-
-      if (!response.data.success || !response.data.data) {
-        throw new Error(response.data.errorMsg || 'Failed to create payment');
-      }
-
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to create payment:', error);
       throw error;
     }
   },
@@ -205,7 +173,7 @@ export const api = {
     paymentMethod: PaymentMethod = 'crypto'
   ): Promise<boolean> {
     try {
-      const response = await apiClient.post<APIResponse<{verified: boolean}>>('/api/v1/open/payments/verify', {
+      const response = await apiClient.post('/api/v1/open/payments/verify', {
         transactionId,
         paymentMethod
       });
@@ -223,32 +191,11 @@ export const api = {
 
   async logPackageSelection(packageId: string): Promise<void> {
     try {
-      await apiClient.post<APIResponse<any>>('/api/v1/open/package/log-selection', {
+      await apiClient.post('/api/v1/open/package/log-selection', {
         selectedId: packageId
       });
     } catch (error) {
       console.error('Failed to log package selection:', error);
-    }
-  },
-
-  async createOrder(transactionId: string, packageCode: string): Promise<{orderNo: string}> {
-    try {
-      const response = await apiClient.post<APIResponse<{orderNo: string}>>('/api/v1/open/esim/order', {
-        transactionId,
-        packageInfoList: [{
-          packageCode,
-          count: 1
-        }]
-      });
-
-      if (!response.data.success || !response.data.data) {
-        throw new Error(response.data.errorMsg || 'Failed to create order');
-      }
-
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to create order:', error);
-      throw error;
     }
   }
 };

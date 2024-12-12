@@ -10,6 +10,16 @@ type Asset = {
   label: string;
 };
 
+type PaymentMethod = 'ton' | 'crypto';
+
+interface PaymentData {
+  transactionId: string;
+  packageId: string;
+  amount: number;
+  asset: string;
+  paymentMethod: PaymentMethod;
+}
+
 const SUPPORTED_ASSETS: Asset[] = [
   { value: 'TON', label: 'TON' },
   { value: 'USDT', label: 'USDT' },
@@ -27,7 +37,7 @@ export const Cart = () => {
   const [selectedAsset, setSelectedAsset] = React.useState(SUPPORTED_ASSETS[0].value);
 
   const handlePayment = async () => {
-    if (items.length === 0) return;
+    if (items.length === 0 || !selectedAsset) return;
     
     try {
       setIsProcessing(true);
@@ -35,20 +45,22 @@ export const Cart = () => {
       for (const item of items) {
         const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         
-        console.log('Creating payment with params:', {
+        const paymentData: PaymentData = {
           transactionId,
           packageId: item.id,
           amount: item.price,
           asset: selectedAsset,
-          currency_type: 'crypto'
-        });
+          paymentMethod: selectedAsset === 'TON' ? 'ton' : 'crypto'
+        };
+
+        console.log('Creating payment with params:', paymentData);
         
         const payment = await api.createPayment(
-          transactionId,
-          item.price,
-          item.id,
-          selectedAsset,
-          selectedAsset === 'TON' ? 'ton' : 'crypto'
+          paymentData.transactionId,
+          paymentData.amount,
+          paymentData.packageId,
+          paymentData.asset,
+          paymentData.paymentMethod
         );
 
         console.log('Payment created:', payment);
@@ -79,6 +91,7 @@ export const Cart = () => {
   };
 
   const handleAssetSelect = (assetValue: string) => {
+    console.log('Selected asset:', assetValue);
     setSelectedAsset(assetValue);
   };
 
@@ -126,6 +139,7 @@ export const Cart = () => {
               key={asset.value}
               onClick={() => handleAssetSelect(asset.value)}
               after={selectedAsset === asset.value ? '✓' : null}
+              className="cursor-pointer hover:bg-gray-700"
             >
               {asset.label}
             </Cell>
@@ -143,7 +157,7 @@ export const Cart = () => {
                 mode="filled"
                 stretched
                 onClick={handlePayment}
-                disabled={isProcessing}
+                disabled={isProcessing || !selectedAsset}
               >
                 {isProcessing ? 'Создание платежа...' : 'Оплатить'}
               </Button>
