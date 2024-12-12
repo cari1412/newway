@@ -2,15 +2,10 @@ import React from 'react';
 import { Section, Cell, List, Button } from '@telegram-apps/telegram-ui';
 import { useCart } from '@/hooks/useCart';
 import { formatPrice } from '@/utils/formats';
-import { api, type PaymentParams } from '@/services/api';
+import { api, type PaymentRequestParams } from '@/services/api';
 import { toast } from 'react-hot-toast';
 
-type Asset = {
-  value: string;
-  label: string;
-};
-
-const SUPPORTED_ASSETS: Asset[] = [
+const SUPPORTED_ASSETS = [
   { value: 'TON', label: 'TON' },
   { value: 'USDT', label: 'USDT' },
   { value: 'BTC', label: 'Bitcoin' },
@@ -36,23 +31,20 @@ export const Cart = () => {
       toast.error('Выберите криптовалюту для оплаты');
       return;
     }
-    
+
     try {
       setIsProcessing(true);
-      
+
       for (const item of items) {
-        const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        
-        const paymentData: PaymentParams = {
-          transactionId,
+        const paymentData: PaymentRequestParams = {
+          transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           packageId: item.id,
           amount: item.price.toString(),
           asset: selectedAsset,
-          paymentMethod: selectedAsset === 'TON' ? 'ton' : 'crypto',
           currency_type: 'crypto'
         };
 
-        console.log('Creating payment with params:', paymentData);
+        console.log('Creating payment:', paymentData);
 
         const payment = await api.createPayment(paymentData);
 
@@ -65,7 +57,7 @@ export const Cart = () => {
           const paymentUrl = isTelegramWebApp 
             ? payment.mini_app_invoice_url 
             : payment.web_app_invoice_url;
-            
+
           if (paymentUrl) {
             window.location.href = paymentUrl;
           } else {
@@ -84,7 +76,7 @@ export const Cart = () => {
   };
 
   const handleAssetSelect = (assetValue: string) => {
-    console.log('Selected asset:', assetValue);
+    console.log('Debug - Selected asset:', assetValue);
     setSelectedAsset(assetValue);
   };
 

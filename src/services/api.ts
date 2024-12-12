@@ -2,15 +2,20 @@ import axios from 'axios';
 
 const API_URL = 'https://web.sexystyle.site';
 
-export type PaymentMethod = 'ton' | 'crypto';
-
-export interface PaymentParams {
+export interface PaymentRequestParams {
   transactionId: string;
   packageId: string;
   amount: string | number;
   asset: string;
-  paymentMethod: PaymentMethod;
-  currency_type: 'crypto';
+  currency_type: 'crypto' | 'fiat';
+  paymentMethod?: 'ton' | 'crypto';
+}
+
+export interface PaymentResponse {
+  bot_invoice_url: string;
+  mini_app_invoice_url?: string;
+  web_app_invoice_url?: string;
+  payment_url?: string;
 }
 
 export interface Package {
@@ -40,10 +45,9 @@ export interface Package {
   locationNetworkList: LocationNetwork[];
 }
 
-export interface CountryData {
-  locationCode: string;
-  minPrice: number;
-  plansCount: number;
+export interface OperatorInfo {
+  operatorName: string;
+  networkType: string;
 }
 
 export interface LocationNetwork {
@@ -52,134 +56,81 @@ export interface LocationNetwork {
   operatorList: OperatorInfo[];
 }
 
-export interface OperatorInfo {
-  operatorName: string;
-  networkType: string;
-}
-
-export interface TonPayment {
-  payment_url: string;
-  deepLink?: string;
-  tonUrl?: string;
-  paymentDetails: {
-    amount: string;
-    amountUsd: string;
-    amountTon: string;
-    tonRate: string;
-  }
-}
-
-export interface CryptoPayment {
-  bot_invoice_url: string;
-  mini_app_invoice_url: string;
-  web_app_invoice_url: string;
-  invoice_id: number;
-  status: string;
-  hash: string;
-  asset: string;
-  amount: string;
-}
-
-// API Client setup
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
-  },
-  timeout: 15000
+  }
 });
 
-// Response interceptor
+apiClient.interceptors.request.use(
+  (config) => {
+    console.log('🚀 Request:', config.data);
+    return config;
+  },
+  (error) => {
+    console.error('Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('✅ Response:', {
-      url: response.config.url,
-      status: response.status,
-      data: response.data
-    });
+    console.log('✅ Response:', response.data);
     return response;
   },
   (error) => {
-    console.error('❌ Response Error:', {
-      url: error.config?.url,
-      message: error.message,
-      data: error.response?.data
-    });
+    console.error('Response error:', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
 
 export const api = {
-  async createPayment(params: PaymentParams): Promise<TonPayment | CryptoPayment> {
+  async createPayment(params: PaymentRequestParams) {
     try {
-      const { transactionId, amount, packageId, asset, paymentMethod } = params;
-      
-      console.log('Creating payment with params:', {
-        transactionId,
-        packageId,
-        amount,
-        asset,
-        paymentMethod,
-        currency_type: 'crypto'
-      });
+      // Убедимся, что все обязательные поля присутствуют
+      if (!params.asset || !params.amount || !params.packageId || !params.transactionId) {
+        throw new Error('Missing required parameters');
+      }
 
-      const response = await apiClient.post('/api/v1/open/payments/create', {
-        transactionId,
-        packageId,
-        amount: amount.toString(),
-        asset,
-        paymentMethod,
-        currency_type: 'crypto'
-      });
+      // Подготовим данные для запроса согласно документации API
+      const requestData = {
+        transactionId: params.transactionId,
+        packageId: params.packageId,
+        amount: params.amount.toString(),
+        asset: params.asset.toUpperCase(), // Убедимся, что asset в верхнем регистре
+        currency_type: 'crypto' as const,
+        paymentMethod: params.asset === 'TON' ? 'ton' : 'crypto'
+      };
+
+      console.log('Debug - Payment request data:', requestData);
+
+      const response = await apiClient.post('/api/v1/open/payments/create', requestData);
+
+      console.log('Debug - Payment response:', response.data);
 
       if (!response.data.success) {
-        throw new Error(response.data.errorMsg || 'Failed to create payment');
+        throw new Error(response.data.errorMsg || 'Payment creation failed');
       }
 
       return response.data.data;
     } catch (error) {
-      console.error('Payment creation failed:', error);
+      console.error('Payment creation error:', error);
       throw error;
     }
   },
 
   async getPackages(location?: string): Promise<Package[]> {
-    try {
-      const response = await apiClient.post('/api/v1/open/package/list', {
-        locationCode: location || '',
-        type: 'BASE'
-      });
+    const response = await apiClient.post('/api/v1/open/package/list', {
+      locationCode: location || '',
+      type: 'BASE'
+    });
 
-      if (!response.data.success) {
-        throw new Error(response.data.errorMsg || 'Failed to fetch packages');
-      }
-
-      return response.data.obj?.packageList || [];
-    } catch (error) {
-      console.error('Failed to fetch packages:', error);
-      throw error;
+    if (!response.data.success) {
+      throw new Error(response.data.errorMsg || 'Failed to fetch packages');
     }
-  },
 
-  async verifyPayment(
-    transactionId: string,
-    paymentMethod: PaymentMethod = 'crypto'
-  ): Promise<boolean> {
-    try {
-      const response = await apiClient.post('/api/v1/open/payments/verify', {
-        transactionId,
-        paymentMethod
-      });
-
-      if (!response.data.success) {
-        throw new Error(response.data.errorMsg || 'Failed to verify payment');
-      }
-
-      return response.data.data?.verified || false;
-    } catch (error) {
-      console.error('Failed to verify payment:', error);
-      throw error;
-    }
+    return response.data.obj?.packageList || [];
   },
 
   async logPackageSelection(packageId: string): Promise<void> {
