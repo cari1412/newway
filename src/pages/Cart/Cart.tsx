@@ -2,8 +2,19 @@ import React from 'react';
 import { Section, Cell, List, Button } from '@telegram-apps/telegram-ui';
 import { useCart } from '@/hooks/useCart';
 import { formatPrice } from '@/utils/formats';
-import { api, type PaymentRequestParams } from '@/services/api';
+import { api } from '@/services/api';
 import { toast } from 'react-hot-toast';
+
+type PaymentMethod = 'ton' | 'crypto';
+
+interface PaymentParams {
+  transactionId: string;
+  packageId: string;
+  amount: string;
+  asset: string;
+  currency_type: 'crypto';
+  paymentMethod: PaymentMethod;
+}
 
 const SUPPORTED_ASSETS = [
   { value: 'TON', label: 'TON' },
@@ -14,12 +25,12 @@ const SUPPORTED_ASSETS = [
   { value: 'BNB', label: 'BNB' },
   { value: 'TRX', label: 'TRON' },
   { value: 'USDC', label: 'USDC' }
-];
+] as const;
 
 export const Cart = () => {
   const { items, removeFromCart, getTotalPrice } = useCart();
   const [isProcessing, setIsProcessing] = React.useState(false);
-  const [selectedAsset, setSelectedAsset] = React.useState(SUPPORTED_ASSETS[0].value);
+  const [selectedAsset, setSelectedAsset] = React.useState<string>(SUPPORTED_ASSETS[0].value);
 
   const handlePayment = async () => {
     if (items.length === 0) {
@@ -36,12 +47,13 @@ export const Cart = () => {
       setIsProcessing(true);
 
       for (const item of items) {
-        const paymentData: PaymentRequestParams = {
+        const paymentData: PaymentParams = {
           transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           packageId: item.id,
           amount: item.price.toString(),
           asset: selectedAsset,
-          currency_type: 'crypto'
+          currency_type: 'crypto',
+          paymentMethod: selectedAsset === 'TON' ? 'ton' : 'crypto'
         };
 
         console.log('Creating payment:', paymentData);
