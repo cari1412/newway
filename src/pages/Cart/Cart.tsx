@@ -19,7 +19,7 @@ const SUPPORTED_ASSETS = [
 export const Cart = () => {
   const { items, removeFromCart, getTotalPrice } = useCart();
   const [isProcessing, setIsProcessing] = React.useState(false);
-  const [selectedAsset, setSelectedAsset] = React.useState(SUPPORTED_ASSETS[0].value);
+  const [selectedAsset, setSelectedAsset] = React.useState('TON');
 
   const handlePayment = async () => {
     if (items.length === 0) return;
@@ -30,19 +30,23 @@ export const Cart = () => {
       for (const item of items) {
         const transactionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         
-        if (!selectedAsset) {
-          throw new Error('Выберите криптовалюту для оплаты');
-        }
-
-        const paymentMethod = selectedAsset === 'TON' ? 'ton' : 'crypto';
+        console.log('Creating payment with params:', {
+          transactionId,
+          packageId: item.id,
+          amount: item.price,
+          asset: selectedAsset,
+          currency_type: 'crypto'
+        });
         
         const payment = await api.createPayment(
           transactionId,
           item.price,
           item.id,
           selectedAsset,
-          paymentMethod
+          selectedAsset === 'TON' ? 'ton' : 'crypto'
         );
+
+        console.log('Payment created:', payment);
 
         if ('payment_url' in payment) {
           window.location.href = payment.payment_url;
@@ -121,7 +125,6 @@ export const Cart = () => {
                   <option 
                     key={asset.value} 
                     value={asset.value}
-                    className="bg-gray-800 text-white"
                   >
                     {asset.label}
                   </option>
@@ -142,7 +145,7 @@ export const Cart = () => {
                 mode="filled"
                 stretched
                 onClick={handlePayment}
-                disabled={isProcessing || !selectedAsset}
+                disabled={isProcessing}
               >
                 {isProcessing ? 'Создание платежа...' : 'Оплатить'}
               </Button>
