@@ -5,7 +5,12 @@ import { formatPrice } from '@/utils/formats';
 import { api } from '@/services/api';
 import { toast } from 'react-hot-toast';
 
-const SUPPORTED_ASSETS = [
+type Asset = {
+  value: string;
+  label: string;
+};
+
+const SUPPORTED_ASSETS: Asset[] = [
   { value: 'TON', label: 'TON' },
   { value: 'USDT', label: 'USDT' },
   { value: 'BTC', label: 'Bitcoin' },
@@ -19,7 +24,7 @@ const SUPPORTED_ASSETS = [
 export const Cart = () => {
   const { items, removeFromCart, getTotalPrice } = useCart();
   const [isProcessing, setIsProcessing] = React.useState(false);
-  const [selectedAsset, setSelectedAsset] = React.useState('TON');
+  const [selectedAsset, setSelectedAsset] = React.useState(SUPPORTED_ASSETS[0].value);
 
   const handlePayment = async () => {
     if (items.length === 0) return;
@@ -73,6 +78,10 @@ export const Cart = () => {
     }
   };
 
+  const handleAssetSelect = (assetValue: string) => {
+    setSelectedAsset(assetValue);
+  };
+
   if (items.length === 0) {
     return (
       <div className="w-full">
@@ -111,27 +120,16 @@ export const Cart = () => {
         </Section>
 
         <Section header="Способ оплаты">
-          <Cell>
-            <div className="w-full">
-              <label className="block text-sm text-gray-100 mb-2">
-                Выберите криптовалюту для оплаты:
-              </label>
-              <select
-                value={selectedAsset}
-                onChange={(e) => setSelectedAsset(e.target.value)}
-                className="w-full p-3 bg-gray-800 text-white border border-gray-700 rounded-lg"
-              >
-                {SUPPORTED_ASSETS.map(asset => (
-                  <option 
-                    key={asset.value} 
-                    value={asset.value}
-                  >
-                    {asset.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </Cell>
+          <Cell>Выберите криптовалюту для оплаты:</Cell>
+          {SUPPORTED_ASSETS.map((asset) => (
+            <Cell
+              key={asset.value}
+              onClick={() => handleAssetSelect(asset.value)}
+              after={selectedAsset === asset.value ? '✓' : null}
+            >
+              {asset.label}
+            </Cell>
+          ))}
         </Section>
 
         <Section>
