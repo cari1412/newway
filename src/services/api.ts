@@ -34,7 +34,7 @@ export interface PaymentRequestParams {
   paymentMethod: 'ton' | 'crypto';
 }
 
-export interface PaymentResponse {
+export interface PaymentResponseData {
   ok: boolean;
   result: {
     invoice_id: number;
@@ -53,7 +53,6 @@ export interface PaymentResponse {
     allow_anonymous: boolean;
     payload: string;
   };
-  error?: string;
 }
 
 export interface Package {
@@ -101,7 +100,7 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
-    console.log('🚀 Request:', config.data);
+    console.log('Request:', config.data);
     return config;
   },
   (error) => {
@@ -112,7 +111,7 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('✅ Response:', response.data);
+    console.log('Response:', response.data);
     return response;
   },
   (error) => {
@@ -122,7 +121,7 @@ apiClient.interceptors.response.use(
 );
 
 export const api = {
-  async createPayment(params: PaymentRequestParams): Promise<PaymentResponse> {
+  async createPayment(params: PaymentRequestParams): Promise<PaymentResponseData> {
     try {
       if (!params.asset || !params.amount || !params.packageId || !params.transactionId) {
         throw new Error('Missing required parameters');
@@ -139,11 +138,9 @@ export const api = {
 
       console.log('Creating payment with data:', requestData);
 
-      const response = await apiClient.post<PaymentResponse>('/api/v1/open/payments/create', requestData);
+      const response = await apiClient.post<PaymentResponseData>('/api/v1/open/payments/create', requestData);
 
-      if (!response.data.ok || !response.data.result) {
-        throw new Error('Payment creation failed');
-      }
+      console.log('API Response:', response.data);
 
       return response.data;
     } catch (error) {

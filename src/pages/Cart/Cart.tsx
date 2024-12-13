@@ -54,20 +54,27 @@ export const Cart: React.FC = () => {
         console.log('Creating payment:', paymentData);
 
         const response = await api.createPayment(paymentData);
+        console.log('Payment response:', response);
 
-        if (response.ok && response.result.mini_app_invoice_url) {
-          if (window.Telegram?.WebApp) {
-            console.log('Opening invoice URL:', response.result.mini_app_invoice_url);
-            window.Telegram.WebApp.openInvoice(response.result.mini_app_invoice_url);
-          } else {
-            console.log('Opening fallback URL:', response.result.web_app_invoice_url);
-            window.location.href = response.result.web_app_invoice_url || response.result.bot_invoice_url;
+        if (response.ok && response.result?.mini_app_invoice_url) {
+          try {
+            if (window.Telegram?.WebApp) {
+              console.log('Opening invoice in Telegram WebApp:', response.result.mini_app_invoice_url);
+              window.Telegram.WebApp.openInvoice(response.result.mini_app_invoice_url);
+              return;
+            } else {
+              console.log('Opening fallback URL:', response.result.web_app_invoice_url);
+              window.location.href = response.result.web_app_invoice_url || response.result.bot_invoice_url;
+              return;
+            }
+          } catch (invoiceError) {
+            console.error('Error opening invoice:', invoiceError);
+            throw new Error('Ошибка при открытии платежа');
           }
-          break;
-        } else {
-          console.error('Invalid payment response:', response);
-          throw new Error('Некорректный ответ от сервера');
         }
+
+        console.error('Invalid payment response:', response);
+        throw new Error('Некорректный ответ от сервера');
       }
     } catch (error) {
       console.error('Payment error:', error);
