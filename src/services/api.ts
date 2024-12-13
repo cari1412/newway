@@ -3,6 +3,7 @@ import axios from 'axios';
 
 const API_URL = 'https://web.sexystyle.site';
 
+// Типы для Telegram WebApp
 interface TelegramWebApp {
   openInvoice(url: string): void;
   close(): void;
@@ -24,7 +25,7 @@ declare global {
   }
 }
 
-// Остальные интерфейсы
+// Интерфейсы для API
 export interface PaymentRequestParams {
   transactionId: string;
   packageId: string;
@@ -34,18 +35,27 @@ export interface PaymentRequestParams {
   paymentMethod: 'ton' | 'crypto';
 }
 
-export interface PaymentResponse {
-  success: boolean;
+export interface PaymentData {
   invoice_id: number;
-  amount: string;
+  hash: string;
   asset: string;
+  amount: string;
   status: string;
   bot_invoice_url: string;
   mini_app_invoice_url: string;
   web_app_invoice_url: string;
-  hash: string;
+  currency_type: 'crypto' | 'fiat';
+  description?: string;
+  payload?: string;
 }
 
+export interface PaymentResponse {
+  success: boolean;
+  data: PaymentData;
+  errorMsg?: string;
+}
+
+// Остальные интерфейсы
 export interface Package {
   id: string;
   name: string;
@@ -57,8 +67,6 @@ export interface Package {
   features: string[];
   smsStatus: number;
   operatorList: OperatorInfo[];
-  transactionId?: string;
-  paymentAddress?: string;
   packageCode: string;
   slug: string;
   currencyCode: string;
@@ -84,6 +92,7 @@ export interface LocationNetwork {
   operatorList: OperatorInfo[];
 }
 
+// Создание клиента axios
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
@@ -91,9 +100,10 @@ const apiClient = axios.create({
   }
 });
 
+// Добавляем перехватчики
 apiClient.interceptors.request.use(
   (config) => {
-    console.log('🚀 Request:', config.data);
+    console.log('Request:', config.data);
     return config;
   },
   (error) => {
@@ -104,7 +114,7 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('✅ Response:', response.data);
+    console.log('Response:', response.data);
     return response;
   },
   (error) => {
@@ -113,6 +123,7 @@ apiClient.interceptors.response.use(
   }
 );
 
+// API методы
 export const api = {
   async createPayment(params: PaymentRequestParams): Promise<PaymentResponse> {
     try {
@@ -129,16 +140,15 @@ export const api = {
         paymentMethod: params.asset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
       };
 
-      const response = await apiClient.post<{
-        success: boolean;
-        data: PaymentResponse;
-      }>('/api/v1/open/payments/create', requestData);
+      console.log('Creating payment with data:', requestData);
+
+      const response = await apiClient.post<PaymentResponse>('/api/v1/open/payments/create', requestData);
 
       if (!response.data.success || !response.data.data) {
-        throw new Error('Payment creation failed');
+        throw new Error(response.data.errorMsg || 'Payment creation failed');
       }
 
-      return response.data.data;
+      return response.data;
     } catch (error) {
       console.error('Payment creation error:', error);
       throw error;

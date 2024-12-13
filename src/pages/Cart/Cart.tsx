@@ -6,7 +6,12 @@ import { formatPrice } from '@/utils/formats';
 import { api, PaymentRequestParams } from '@/services/api';
 import { toast } from 'react-hot-toast';
 
-export const SUPPORTED_ASSETS = [
+type AssetType = {
+  value: string;
+  label: string;
+};
+
+const SUPPORTED_ASSETS: readonly AssetType[] = [
   { value: 'TON', label: 'TON' },
   { value: 'USDT', label: 'USDT' },
   { value: 'BTC', label: 'Bitcoin' },
@@ -17,12 +22,10 @@ export const SUPPORTED_ASSETS = [
   { value: 'USDC', label: 'USDC' }
 ] as const;
 
-export const Cart = () => {
+export const Cart: React.FC = () => {
   const { items, removeFromCart, getTotalPrice } = useCart();
   const [isProcessing, setIsProcessing] = React.useState(false);
-  const [selectedAsset, setSelectedAsset] = React.useState<(typeof SUPPORTED_ASSETS)[number]['value']>(
-    SUPPORTED_ASSETS[0].value
-  );
+  const [selectedAsset, setSelectedAsset] = React.useState<string>(SUPPORTED_ASSETS[0].value);
 
   const handlePayment = async () => {
     if (items.length === 0) {
@@ -50,13 +53,13 @@ export const Cart = () => {
 
         console.log('Creating payment:', paymentData);
 
-        const payment = await api.createPayment(paymentData);
+        const response = await api.createPayment(paymentData);
 
-        if (payment && payment.mini_app_invoice_url) {
-          if (window.Telegram?.WebApp?.openInvoice) {
-            window.Telegram.WebApp.openInvoice(payment.mini_app_invoice_url);
+        if (response.success && response.data?.mini_app_invoice_url) {
+          if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.openInvoice(response.data.mini_app_invoice_url);
           } else {
-            window.location.href = payment.web_app_invoice_url || payment.bot_invoice_url;
+            window.location.href = response.data.web_app_invoice_url || response.data.bot_invoice_url;
           }
           break;
         } else {
@@ -72,7 +75,7 @@ export const Cart = () => {
   };
 
   const handleAssetSelect = (assetValue: string) => {
-    setSelectedAsset(assetValue as (typeof SUPPORTED_ASSETS)[number]['value']);
+    setSelectedAsset(assetValue);
   };
 
   if (items.length === 0) {
@@ -119,7 +122,7 @@ export const Cart = () => {
               key={asset.value}
               onClick={() => handleAssetSelect(asset.value)}
               after={selectedAsset === asset.value ? '✓' : null}
-              className="cursor-pointer hover:bg-gray-700"
+              className="cursor-pointer hover:bg-gray-100/10"
             >
               {asset.label}
             </Cell>
@@ -153,3 +156,5 @@ export const Cart = () => {
     </div>
   );
 };
+
+export default Cart;
