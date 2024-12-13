@@ -27,70 +27,93 @@ export const Cart: React.FC = () => {
  const [isProcessing, setIsProcessing] = React.useState(false);
  const [selectedAsset, setSelectedAsset] = React.useState<string>(SUPPORTED_ASSETS[0].value);
 
- const handlePaymentUrls = async (mini_app_invoice_url: string): Promise<boolean> => {
-   if (typeof window !== 'undefined' && 'Telegram' in window) {
-     try {
-       if (mini_app_invoice_url) {
-         await window.Telegram.WebApp.openInvoice(mini_app_invoice_url);
-         return true;
-       }
-     } catch (error) {
-       console.error('Failed to open invoice:', error);
-       throw new Error('Не удалось открыть форму оплаты');
-     }
-   }
-   return false;
- };
-
  const handlePayment = async () => {
-   if (items.length === 0) {
-     toast.error('Корзина пуста');
-     return;
-   }
+    if (items.length === 0) {
+      toast.error('Корзина пуста');
+      return;
+    }
 
-   if (!selectedAsset) {
-     toast.error('Выберите криптовалюту для оплаты');
-     return;
-   }
+    if (!selectedAsset) {
+      toast.error('Выберите криптовалюту для оплаты');
+      return;
+    }
 
-   setIsProcessing(true);
+    setIsProcessing(true);
 
-   try {
-     const item = items[0];
-     
-     const paymentData: PaymentRequestParams = {
-       transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-       packageId: item.id,
-       amount: item.price.toString(),
-       asset: selectedAsset
-     };
+    try {
+      const item = items[0];
+      
+      const paymentData: PaymentRequestParams = {
+        transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        packageId: item.id,
+        amount: item.price.toString(),
+        asset: selectedAsset
+      };
 
-     const response = await api.createPayment(paymentData);
+      const response = await api.createPayment(paymentData);
 
-     if (!response.ok || !response.result) {
-       console.error('Invalid payment response:', response);
-       throw new Error('Ошибка при создании платежа');
-     }
+      // Изменяем проверку ответа
+      if (!response || !response.result || !response.ok) {
+        console.error('Invalid payment response:', response);
+        throw new Error('Ошибка при создании платежа');
+      }
 
-     const { mini_app_invoice_url } = response.result;
+      console.log('Payment response:', response); // Добавляем для дебага
 
-     if (!mini_app_invoice_url) {
-       throw new Error('Не получен URL для оплаты');
-     }
+      const { mini_app_invoice_url, web_app_invoice_url, bot_invoice_url } = response.result;
 
-     const handled = await handlePaymentUrls(mini_app_invoice_url);
+      if (!mini_app_invoice_url && !web_app_invoice_url && !bot_invoice_url) {
+        throw new Error('Не получены URL для оплаты');
+      }
 
-     if (!handled) {
-       throw new Error('Не удалось открыть форму оплаты');
-     }
+      // Пробуем использовать URL в порядке приоритета
+      let handled = false;
 
-   } catch (error) {
-     console.error('Payment error:', error);
-     toast.error(error instanceof Error ? error.message : 'Ошибка при создании платежа');
-   } finally {
-     setIsProcessing(false);
-   }
- };
+      if (mini_app_invoice_url) {
+        try {
+          handled = await handlePaymentUrls(mini_app_invoice_url);
+        } catch (error) {
+          console.error('Failed to open mini app invoice:', error);
+        }
+      }
+
+      // Если mini app не сработал, пробуем web app
+      if (!handled && web_app_invoice_url) {
+        window.location.href = web_app_invoice_url;
+        handled = true;
+      }
+
+      // Если web app не сработал, используем bot url
+      if (!handled && bot_invoice_url) {
+        window.location.href = bot_invoice_url;
+        handled = true;
+      }
+
+      if (!handled) {
+        throw new Error('Не удалось открыть форму оплаты');
+      }
+
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast.error(error instanceof Error ? error.message : 'Ошибка при создании платежа');
+    } finally {
+      setIsProcessing(false);
+    }
+};
+
+const handlePaymentUrls = async (invoice_url: string): Promise<boolean> => {
+    if (typeof window !== 'undefined' && 'Telegram' in window) {
+      try {
+        await window.Telegram.WebApp.openInvoice(invoice_url);
+        return true;
+      } catch (error) {
+        console.error('Failed to open invoice:', error);
+        // Изменим поведение - не выбрасываем ошибку, а возвращаем false
+        return false;
+      }
+    }
+    return false;
+};
 
  const handleAssetSelect = (assetValue: string) => {
    setSelectedAsset(assetValue);
