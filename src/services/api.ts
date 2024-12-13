@@ -159,7 +159,7 @@ export const api = {
 
       console.log('Creating payment with data:', requestData);
 
-      const response = await apiClient.post<PaymentResponseData>('/api/v1/open/payments/create', requestData);
+      const response = await apiClient.post<PaymentResponseData>('/api/crypto/invoice/create', requestData);
 
       // Validate response structure
       if (!response.data || typeof response.data !== 'object') {
