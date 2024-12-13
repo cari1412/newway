@@ -16,7 +16,6 @@ export interface TelegramWebApp {
   };
 }
 
-// Extend the global Window interface
 declare global {
   interface Window {
     Telegram: {
@@ -34,8 +33,8 @@ export interface PaymentRequestParams {
 }
 
 export interface PaymentResponseData {
-  ok: boolean;
-  result?: {
+  success: boolean;
+  data?: {
     invoice_id: number;
     hash: string;
     currency_type: string;
@@ -154,12 +153,12 @@ export const api = {
 
       const response = await apiClient.post<PaymentResponseData>('/api/crypto/invoice/create', requestData);
 
-      if (!response.data.ok) {
+      if (!response.data.success) {
         throw new Error(response.data.errorMsg || 'Payment creation failed');
       }
 
-      if (!response.data.result) {
-        throw new Error('Invalid response format: missing result data');
+      if (!response.data.data) {
+        throw new Error('Invalid response format: missing data');
       }
 
       console.log('Payment creation successful:', response.data);
@@ -167,24 +166,10 @@ export const api = {
       return response.data;
     } catch (error) {
       console.error('Payment creation failed:', error);
-      throw error;
-    }
-  },
-
-  async verifyPayment(transactionId: string): Promise<boolean> {
-    try {
-      const response = await apiClient.post<PaymentResponseData>('/api/crypto/verify', {
-        transactionId
-      });
-      
-      if (!response.data.ok) {
-        return false;
+      if (axios.isAxiosError(error) && error.response?.status === 502) {
+        throw new Error('Сервис оплаты временно недоступен. Пожалуйста, попробуйте позже');
       }
-
-      return response.data.result?.status === 'paid' || false;
-    } catch (error) {
-      console.error('Payment verification failed:', error);
-      return false;
+      throw error;
     }
   },
 
@@ -213,7 +198,6 @@ export const api = {
       });
     } catch (error) {
       console.error('Failed to log package selection:', error);
-      // Don't throw error for logging failures
     }
   }
 };
