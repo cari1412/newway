@@ -41,40 +41,60 @@ export const Cart: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      for (const item of items) {
-        const paymentData: PaymentRequestParams = {
-          transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          packageId: item.id,
-          amount: item.price.toString(),
-          asset: selectedAsset,
-          currency_type: 'crypto',
-          paymentMethod: selectedAsset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
-        };
+      // Process one item at a time
+      const item = items[0]; // Start with first item
+      
+      const paymentData: PaymentRequestParams = {
+        transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        packageId: item.id,
+        amount: item.price.toString(),
+        asset: selectedAsset,
+        currency_type: 'crypto',
+        paymentMethod: selectedAsset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
+      };
 
-        console.log('Creating payment:', paymentData);
+      console.log('Creating payment:', paymentData);
 
-        const response = await api.createPayment(paymentData);
-        console.log('Payment response:', response);
+      const response = await api.createPayment(paymentData);
+      console.log('Payment response:', response);
 
-        if (response.ok && response.result?.mini_app_invoice_url) {
-          try {
-            if (window.Telegram?.WebApp) {
-              console.log('Opening invoice in Telegram WebApp:', response.result.mini_app_invoice_url);
-              window.Telegram.WebApp.openInvoice(response.result.mini_app_invoice_url);
-              return;
-            } else {
-              console.log('Opening fallback URL:', response.result.web_app_invoice_url);
-              window.location.href = response.result.web_app_invoice_url || response.result.bot_invoice_url;
-              return;
-            }
-          } catch (invoiceError) {
-            console.error('Error opening invoice:', invoiceError);
+      if (!response.ok || !response.result) {
+        throw new Error('Некорректный ответ от сервера');
+      }
+
+      const { mini_app_invoice_url, web_app_invoice_url, bot_invoice_url } = response.result;
+
+      // Check if we're in Telegram environment
+      if (window.Telegram?.WebApp) {
+        try {
+          // Prefer mini app invoice URL for Telegram environment
+          if (mini_app_invoice_url) {
+            await window.Telegram.WebApp.openInvoice(mini_app_invoice_url);
+          } else if (web_app_invoice_url) {
+            window.location.href = web_app_invoice_url;
+          } else if (bot_invoice_url) {
+            window.location.href = bot_invoice_url;
+          } else {
+            throw new Error('Не получены URL для оплаты');
+          }
+        } catch (invoiceError) {
+          console.error('Error opening invoice:', invoiceError);
+          // Try fallback to web_app_invoice_url if openInvoice fails
+          if (web_app_invoice_url) {
+            window.location.href = web_app_invoice_url;
+          } else {
             throw new Error('Ошибка при открытии платежа');
           }
         }
-
-        console.error('Invalid payment response:', response);
-        throw new Error('Некорректный ответ от сервера');
+      } else {
+        // Not in Telegram environment, use web version
+        if (web_app_invoice_url) {
+          window.location.href = web_app_invoice_url;
+        } else if (bot_invoice_url) {
+          window.location.href = bot_invoice_url;
+        } else {
+          throw new Error('Не получены URL для оплаты');
+        }
       }
     } catch (error) {
       console.error('Payment error:', error);
@@ -166,5 +186,3 @@ export const Cart: React.FC = () => {
     </div>
   );
 };
-
-export default Cart;
