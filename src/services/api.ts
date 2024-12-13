@@ -1,4 +1,3 @@
-// api.ts
 import axios from 'axios';
 
 const API_URL = 'https://web.sexystyle.site';
@@ -32,31 +31,20 @@ export interface PaymentRequestParams {
   packageId: string;
   amount: string;
   asset: string;
-  currency_type: 'crypto' | 'fiat';
-  paymentMethod: 'ton' | 'crypto';
 }
 
 export interface PaymentResponseData {
-  ok: boolean;
-  result?: {
+  success: boolean;
+  data?: {
     invoice_id: number;
-    hash: string;
-    currency_type: string;
-    asset: string;
     amount: string;
-    pay_url: string;
-    bot_invoice_url: string;
-    mini_app_invoice_url: string;
-    web_app_invoice_url: string;
-    description: string;
+    asset: string;
     status: string;
-    created_at: string;
-    allow_comments: boolean;
-    allow_anonymous: boolean;
-    payload: string;
+    mini_app_url: string;
+    hash: string;
   };
-  error?: string;
-  error_code?: number;
+  errorCode?: string;
+  errorMsg?: string;
 }
 
 // Package Types
@@ -148,31 +136,40 @@ export const api = {
         throw new Error('Missing required payment parameters');
       }
 
-      const requestData: PaymentRequestParams = {
+      const requestData = {
         transactionId: params.transactionId,
         packageId: params.packageId,
         amount: params.amount.toString(),
-        asset: params.asset.toUpperCase(),
-        currency_type: 'crypto',
-        paymentMethod: params.asset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
+        asset: params.asset.toUpperCase()
       };
 
       console.log('Creating payment with data:', requestData);
 
       const response = await apiClient.post<PaymentResponseData>('/api/crypto/invoice/create', requestData);
 
-      // Validate response structure
-      if (!response.data || typeof response.data !== 'object') {
-        throw new Error('Invalid response format from server');
+      if (!response.data.success) {
+        throw new Error(response.data.errorMsg || 'Payment creation failed');
       }
 
-      // Log successful response
       console.log('Payment creation successful:', response.data);
 
       return response.data;
     } catch (error) {
       console.error('Payment creation failed:', error);
       throw error;
+    }
+  },
+
+  async verifyPayment(transactionId: string): Promise<boolean> {
+    try {
+      const response = await apiClient.post<{success: boolean; data: boolean}>('/api/crypto/verify', {
+        transactionId
+      });
+      
+      return response.data.success && response.data.data;
+    } catch (error) {
+      console.error('Payment verification failed:', error);
+      return false;
     }
   },
 

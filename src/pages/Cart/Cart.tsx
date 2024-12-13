@@ -27,35 +27,18 @@ export const Cart: React.FC = () => {
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [selectedAsset, setSelectedAsset] = React.useState<string>(SUPPORTED_ASSETS[0].value);
 
-  const handlePaymentUrls = async (
-    mini_app_invoice_url: string,
-    web_app_invoice_url: string,
-    bot_invoice_url: string
-  ) => {
-    // Check if we're in Telegram environment
+  const handlePaymentUrls = async (mini_app_url: string) => {
     if (typeof window !== 'undefined' && 'Telegram' in window) {
       try {
-        // Try mini app invoice URL first
-        if (mini_app_invoice_url) {
-          await window.Telegram.WebApp.openInvoice(mini_app_invoice_url);
+        if (mini_app_url) {
+          await window.Telegram.WebApp.openInvoice(mini_app_url);
           return true;
         }
       } catch (error) {
-        console.error('Failed to open mini app invoice:', error);
+        console.error('Failed to open invoice:', error);
+        return false;
       }
     }
-
-    // Fallback options in order of preference
-    if (web_app_invoice_url) {
-      window.location.href = web_app_invoice_url;
-      return true;
-    }
-
-    if (bot_invoice_url) {
-      window.location.href = bot_invoice_url;
-      return true;
-    }
-
     return false;
   };
 
@@ -73,37 +56,29 @@ export const Cart: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      // Process one item at a time for now
       const item = items[0];
       
       const paymentData: PaymentRequestParams = {
         transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         packageId: item.id,
         amount: item.price.toString(),
-        asset: selectedAsset,
-        currency_type: 'crypto',
-        paymentMethod: selectedAsset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
+        asset: selectedAsset
       };
 
       const response = await api.createPayment(paymentData);
 
-      if (!response.ok || !response.result) {
+      if (!response.success || !response.data) {
         console.error('Invalid payment response:', response);
-        throw new Error('Некорректный ответ от сервера');
+        throw new Error(response.errorMsg || 'Некорректный ответ от сервера');
       }
 
-      const { mini_app_invoice_url, web_app_invoice_url, bot_invoice_url } = response.result;
+      const { mini_app_url } = response.data;
 
-      // Validate that we have at least one payment URL
-      if (!mini_app_invoice_url && !web_app_invoice_url && !bot_invoice_url) {
-        throw new Error('Не получены URL для оплаты');
+      if (!mini_app_url) {
+        throw new Error('Не получен URL для оплаты');
       }
 
-      const handled = await handlePaymentUrls(
-        mini_app_invoice_url,
-        web_app_invoice_url,
-        bot_invoice_url
-      );
+      const handled = await handlePaymentUrls(mini_app_url);
 
       if (!handled) {
         throw new Error('Не удалось открыть форму оплаты');
