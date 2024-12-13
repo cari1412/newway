@@ -3,9 +3,9 @@ import axios from 'axios';
 
 const API_URL = 'https://web.sexystyle.site';
 
-// Типы для Telegram WebApp
-interface TelegramWebApp {
-  openInvoice(url: string): void;
+// Types for Telegram WebApp
+export interface TelegramWebApp {
+  openInvoice(url: string): Promise<void>;
   close(): void;
   ready(): void;
   expand(): void;
@@ -17,6 +17,7 @@ interface TelegramWebApp {
   };
 }
 
+// Extend the global Window interface
 declare global {
   interface Window {
     Telegram: {
@@ -25,10 +26,11 @@ declare global {
   }
 }
 
+// Payment Types
 export interface PaymentRequestParams {
   transactionId: string;
   packageId: string;
-  amount: string | number;
+  amount: string;
   asset: string;
   currency_type: 'crypto' | 'fiat';
   paymentMethod: 'ton' | 'crypto';
@@ -36,7 +38,7 @@ export interface PaymentRequestParams {
 
 export interface PaymentResponseData {
   ok: boolean;
-  result: {
+  result?: {
     invoice_id: number;
     hash: string;
     currency_type: string;
@@ -53,8 +55,11 @@ export interface PaymentResponseData {
     allow_anonymous: boolean;
     payload: string;
   };
+  error?: string;
+  error_code?: number;
 }
 
+// Package Types
 export interface Package {
   id: string;
   name: string;
@@ -91,6 +96,7 @@ export interface LocationNetwork {
   operatorList: OperatorInfo[];
 }
 
+// API Client Setup
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
@@ -98,9 +104,15 @@ const apiClient = axios.create({
   }
 });
 
+// Request Interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    console.log('Request:', config.data);
+    console.log('Request:', {
+      url: config.url,
+      method: config.method,
+      data: config.data,
+      headers: config.headers
+    });
     return config;
   },
   (error) => {
@@ -109,22 +121,31 @@ apiClient.interceptors.request.use(
   }
 );
 
+// Response Interceptor
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('Response:', response.data);
+    console.log('Response:', {
+      status: response.status,
+      data: response.data
+    });
     return response;
   },
   (error) => {
-    console.error('Response error:', error.response?.data || error.message);
+    console.error('Response error:', {
+      message: error.message,
+      response: error.response?.data
+    });
     return Promise.reject(error);
   }
 );
 
+// API Methods
 export const api = {
   async createPayment(params: PaymentRequestParams): Promise<PaymentResponseData> {
     try {
+      // Validate required parameters
       if (!params.asset || !params.amount || !params.packageId || !params.transactionId) {
-        throw new Error('Missing required parameters');
+        throw new Error('Missing required payment parameters');
       }
 
       const requestData: PaymentRequestParams = {
@@ -140,11 +161,17 @@ export const api = {
 
       const response = await apiClient.post<PaymentResponseData>('/api/v1/open/payments/create', requestData);
 
-      console.log('API Response:', response.data);
+      // Validate response structure
+      if (!response.data || typeof response.data !== 'object') {
+        throw new Error('Invalid response format from server');
+      }
+
+      // Log successful response
+      console.log('Payment creation successful:', response.data);
 
       return response.data;
     } catch (error) {
-      console.error('Payment creation error:', error);
+      console.error('Payment creation failed:', error);
       throw error;
     }
   },
@@ -174,6 +201,7 @@ export const api = {
       });
     } catch (error) {
       console.error('Failed to log package selection:', error);
+      // Don't throw error for logging failures
     }
   }
 };

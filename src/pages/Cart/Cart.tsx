@@ -27,6 +27,38 @@ export const Cart: React.FC = () => {
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [selectedAsset, setSelectedAsset] = React.useState<string>(SUPPORTED_ASSETS[0].value);
 
+  const handlePaymentUrls = async (
+    mini_app_invoice_url: string,
+    web_app_invoice_url: string,
+    bot_invoice_url: string
+  ) => {
+    // Check if we're in Telegram environment
+    if (typeof window !== 'undefined' && 'Telegram' in window) {
+      try {
+        // Try mini app invoice URL first
+        if (mini_app_invoice_url) {
+          await window.Telegram.WebApp.openInvoice(mini_app_invoice_url);
+          return true;
+        }
+      } catch (error) {
+        console.error('Failed to open mini app invoice:', error);
+      }
+    }
+
+    // Fallback options in order of preference
+    if (web_app_invoice_url) {
+      window.location.href = web_app_invoice_url;
+      return true;
+    }
+
+    if (bot_invoice_url) {
+      window.location.href = bot_invoice_url;
+      return true;
+    }
+
+    return false;
+  };
+
   const handlePayment = async () => {
     if (items.length === 0) {
       toast.error('Корзина пуста');
@@ -41,8 +73,8 @@ export const Cart: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      // Process one item at a time
-      const item = items[0]; // Start with first item
+      // Process one item at a time for now
+      const item = items[0];
       
       const paymentData: PaymentRequestParams = {
         transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -53,49 +85,30 @@ export const Cart: React.FC = () => {
         paymentMethod: selectedAsset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
       };
 
-      console.log('Creating payment:', paymentData);
-
       const response = await api.createPayment(paymentData);
-      console.log('Payment response:', response);
 
       if (!response.ok || !response.result) {
+        console.error('Invalid payment response:', response);
         throw new Error('Некорректный ответ от сервера');
       }
 
       const { mini_app_invoice_url, web_app_invoice_url, bot_invoice_url } = response.result;
 
-      // Check if we're in Telegram environment
-      if (window.Telegram?.WebApp) {
-        try {
-          // Prefer mini app invoice URL for Telegram environment
-          if (mini_app_invoice_url) {
-            await window.Telegram.WebApp.openInvoice(mini_app_invoice_url);
-          } else if (web_app_invoice_url) {
-            window.location.href = web_app_invoice_url;
-          } else if (bot_invoice_url) {
-            window.location.href = bot_invoice_url;
-          } else {
-            throw new Error('Не получены URL для оплаты');
-          }
-        } catch (invoiceError) {
-          console.error('Error opening invoice:', invoiceError);
-          // Try fallback to web_app_invoice_url if openInvoice fails
-          if (web_app_invoice_url) {
-            window.location.href = web_app_invoice_url;
-          } else {
-            throw new Error('Ошибка при открытии платежа');
-          }
-        }
-      } else {
-        // Not in Telegram environment, use web version
-        if (web_app_invoice_url) {
-          window.location.href = web_app_invoice_url;
-        } else if (bot_invoice_url) {
-          window.location.href = bot_invoice_url;
-        } else {
-          throw new Error('Не получены URL для оплаты');
-        }
+      // Validate that we have at least one payment URL
+      if (!mini_app_invoice_url && !web_app_invoice_url && !bot_invoice_url) {
+        throw new Error('Не получены URL для оплаты');
       }
+
+      const handled = await handlePaymentUrls(
+        mini_app_invoice_url,
+        web_app_invoice_url,
+        bot_invoice_url
+      );
+
+      if (!handled) {
+        throw new Error('Не удалось открыть форму оплаты');
+      }
+
     } catch (error) {
       console.error('Payment error:', error);
       toast.error(error instanceof Error ? error.message : 'Ошибка при создании платежа');
