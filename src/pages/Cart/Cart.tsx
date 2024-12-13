@@ -1,22 +1,12 @@
+// Cart.tsx
 import React from 'react';
 import { Section, Cell, List, Button } from '@telegram-apps/telegram-ui';
 import { useCart } from '@/hooks/useCart';
 import { formatPrice } from '@/utils/formats';
-import { api } from '@/services/api';
+import { api, PaymentRequestParams } from '@/services/api';
 import { toast } from 'react-hot-toast';
 
-type PaymentMethod = 'ton' | 'crypto';
-
-interface PaymentParams {
-  transactionId: string;
-  packageId: string;
-  amount: string;
-  asset: string;
-  currency_type: 'crypto';
-  paymentMethod: PaymentMethod;
-}
-
-const SUPPORTED_ASSETS = [
+export const SUPPORTED_ASSETS = [
   { value: 'TON', label: 'TON' },
   { value: 'USDT', label: 'USDT' },
   { value: 'BTC', label: 'Bitcoin' },
@@ -30,7 +20,9 @@ const SUPPORTED_ASSETS = [
 export const Cart = () => {
   const { items, removeFromCart, getTotalPrice } = useCart();
   const [isProcessing, setIsProcessing] = React.useState(false);
-  const [selectedAsset, setSelectedAsset] = React.useState<string>(SUPPORTED_ASSETS[0].value);
+  const [selectedAsset, setSelectedAsset] = React.useState<(typeof SUPPORTED_ASSETS)[number]['value']>(
+    SUPPORTED_ASSETS[0].value
+  );
 
   const handlePayment = async () => {
     if (items.length === 0) {
@@ -43,40 +35,32 @@ export const Cart = () => {
       return;
     }
 
-    try {
-      setIsProcessing(true);
+    setIsProcessing(true);
 
+    try {
       for (const item of items) {
-        const paymentData: PaymentParams = {
+        const paymentData: PaymentRequestParams = {
           transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           packageId: item.id,
           amount: item.price.toString(),
           asset: selectedAsset,
           currency_type: 'crypto',
-          paymentMethod: selectedAsset === 'TON' ? 'ton' : 'crypto'
+          paymentMethod: selectedAsset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
         };
 
         console.log('Creating payment:', paymentData);
 
         const payment = await api.createPayment(paymentData);
 
-        console.log('Payment created:', payment);
-
-        if ('payment_url' in payment) {
-          window.location.href = payment.payment_url;
-        } else if ('bot_invoice_url' in payment) {
-          const isTelegramWebApp = window.Telegram?.WebApp;
-          const paymentUrl = isTelegramWebApp 
-            ? payment.mini_app_invoice_url 
-            : payment.web_app_invoice_url;
-
-          if (paymentUrl) {
-            window.location.href = paymentUrl;
+        if (payment && payment.mini_app_invoice_url) {
+          if (window.Telegram?.WebApp?.openInvoice) {
+            window.Telegram.WebApp.openInvoice(payment.mini_app_invoice_url);
           } else {
-            throw new Error('URL оплаты не получен');
+            window.location.href = payment.web_app_invoice_url || payment.bot_invoice_url;
           }
+          break;
         } else {
-          throw new Error('Неверный формат ответа от сервера');
+          throw new Error('Invalid payment response');
         }
       }
     } catch (error) {
@@ -88,8 +72,7 @@ export const Cart = () => {
   };
 
   const handleAssetSelect = (assetValue: string) => {
-    console.log('Debug - Selected asset:', assetValue);
-    setSelectedAsset(assetValue);
+    setSelectedAsset(assetValue as (typeof SUPPORTED_ASSETS)[number]['value']);
   };
 
   if (items.length === 0) {

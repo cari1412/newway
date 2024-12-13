@@ -1,21 +1,49 @@
+// api.ts
 import axios from 'axios';
 
 const API_URL = 'https://web.sexystyle.site';
 
+interface TelegramWebApp {
+  openInvoice(url: string): void;
+  close(): void;
+  ready(): void;
+  expand(): void;
+  MainButton: {
+    text: string;
+    onClick(callback: () => void): void;
+    show(): void;
+    hide(): void;
+  };
+}
+
+declare global {
+  interface Window {
+    Telegram: {
+      WebApp: TelegramWebApp;
+    };
+  }
+}
+
+// Остальные интерфейсы
 export interface PaymentRequestParams {
   transactionId: string;
   packageId: string;
   amount: string | number;
   asset: string;
   currency_type: 'crypto' | 'fiat';
-  paymentMethod?: 'ton' | 'crypto';
+  paymentMethod: 'ton' | 'crypto';
 }
 
 export interface PaymentResponse {
+  success: boolean;
+  invoice_id: number;
+  amount: string;
+  asset: string;
+  status: string;
   bot_invoice_url: string;
-  mini_app_invoice_url?: string;
-  web_app_invoice_url?: string;
-  payment_url?: string;
+  mini_app_invoice_url: string;
+  web_app_invoice_url: string;
+  hash: string;
 }
 
 export interface Package {
@@ -86,31 +114,28 @@ apiClient.interceptors.response.use(
 );
 
 export const api = {
-  async createPayment(params: PaymentRequestParams) {
+  async createPayment(params: PaymentRequestParams): Promise<PaymentResponse> {
     try {
-      // Убедимся, что все обязательные поля присутствуют
       if (!params.asset || !params.amount || !params.packageId || !params.transactionId) {
         throw new Error('Missing required parameters');
       }
 
-      // Подготовим данные для запроса согласно документации API
-      const requestData = {
+      const requestData: PaymentRequestParams = {
         transactionId: params.transactionId,
         packageId: params.packageId,
         amount: params.amount.toString(),
-        asset: params.asset.toUpperCase(), // Убедимся, что asset в верхнем регистре
-        currency_type: 'crypto' as const,
-        paymentMethod: params.asset === 'TON' ? 'ton' : 'crypto'
+        asset: params.asset.toUpperCase(),
+        currency_type: 'crypto',
+        paymentMethod: params.asset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
       };
 
-      console.log('Debug - Payment request data:', requestData);
+      const response = await apiClient.post<{
+        success: boolean;
+        data: PaymentResponse;
+      }>('/api/v1/open/payments/create', requestData);
 
-      const response = await apiClient.post('/api/v1/open/payments/create', requestData);
-
-      console.log('Debug - Payment response:', response.data);
-
-      if (!response.data.success) {
-        throw new Error(response.data.errorMsg || 'Payment creation failed');
+      if (!response.data.success || !response.data.data) {
+        throw new Error('Payment creation failed');
       }
 
       return response.data.data;
@@ -121,16 +146,21 @@ export const api = {
   },
 
   async getPackages(location?: string): Promise<Package[]> {
-    const response = await apiClient.post('/api/v1/open/package/list', {
-      locationCode: location || '',
-      type: 'BASE'
-    });
+    try {
+      const response = await apiClient.post('/api/v1/open/package/list', {
+        locationCode: location || '',
+        type: 'BASE'
+      });
 
-    if (!response.data.success) {
-      throw new Error(response.data.errorMsg || 'Failed to fetch packages');
+      if (!response.data.success) {
+        throw new Error(response.data.errorMsg || 'Failed to fetch packages');
+      }
+
+      return response.data.obj?.packageList || [];
+    } catch (error) {
+      console.error('Failed to fetch packages:', error);
+      throw error;
     }
-
-    return response.data.obj?.packageList || [];
   },
 
   async logPackageSelection(packageId: string): Promise<void> {

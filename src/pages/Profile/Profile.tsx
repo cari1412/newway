@@ -1,6 +1,7 @@
 // src/pages/Profile/Profile.tsx
 import { Section, Cell, List, Spinner } from '@telegram-apps/telegram-ui';
 import { FC, useState, useEffect } from 'react';
+import { openLink, openTelegramLink } from '@telegram-apps/sdk';
 import { Page } from '@/components/Page';
 import { useCart } from '@/contexts/CartContext';
 import { formatPrice } from '@/utils/formats';
@@ -20,6 +21,7 @@ export const Profile: FC = () => {
   useEffect(() => {
     const loadProfile = async () => {
       try {
+        // Имитация загрузки данных
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -32,20 +34,32 @@ export const Profile: FC = () => {
   }, []);
 
   const handleSupportClick = () => {
-    const tg = window.Telegram?.WebApp;
-    if (tg?.openTelegramLink) {
-      tg.openTelegramLink('https://t.me/your_support_bot');
-    } else {
-      // Запасной вариант
+    try {
+      if (openTelegramLink.isAvailable()) {
+        openTelegramLink('https://t.me/your_support_bot');
+      } else {
+        // Fallback для случаев, когда метод недоступен
+        window.open('https://t.me/your_support_bot', '_blank');
+      }
+    } catch (error) {
+      console.error('Error opening support link:', error);
       window.open('https://t.me/your_support_bot', '_blank');
     }
   };
 
   const handleFaqClick = () => {
-    const tg = window.Telegram?.WebApp;
-    if (tg?.openLink) {
-      tg.openLink('https://your-faq-page.com');
-    } else {
+    try {
+      if (openLink.isAvailable()) {
+        openLink('https://your-faq-page.com', {
+          tryBrowser: 'chrome',
+          tryInstantView: true
+        });
+      } else {
+        // Fallback для случаев, когда метод недоступен
+        window.open('https://your-faq-page.com', '_blank');
+      }
+    } catch (error) {
+      console.error('Error opening FAQ link:', error);
       window.open('https://your-faq-page.com', '_blank');
     }
   };
@@ -98,6 +112,7 @@ export const Profile: FC = () => {
             before="💬"
             subtitle="Служба поддержки"
             onClick={handleSupportClick}
+            className="cursor-pointer hover:bg-gray-100"
           >
             Написать в поддержку
           </Cell>
@@ -105,6 +120,7 @@ export const Profile: FC = () => {
             before="📖"
             subtitle="Часто задаваемые вопросы"
             onClick={handleFaqClick}
+            className="cursor-pointer hover:bg-gray-100"
           >
             FAQ
           </Cell>
