@@ -67,18 +67,20 @@ export const Cart: React.FC = () => {
 
       const response = await api.createPayment(paymentData);
 
-      if (!response.success || !response.data) {
+      if (!response.ok || !response.result) {
         console.error('Invalid payment response:', response);
-        throw new Error(response.errorMsg || 'Некорректный ответ от сервера');
+        throw new Error('Некорректный ответ от сервера');
       }
 
-      const { mini_app_url } = response.data;
+      // Изменяем здесь - используем правильное имя поля
+      const { mini_app_invoice_url } = response.result;
 
-      if (!mini_app_url) {
+      if (!mini_app_invoice_url) {
         throw new Error('Не получен URL для оплаты');
       }
 
-      const handled = await handlePaymentUrls(mini_app_url);
+      // И здесь передаем правильное имя переменной
+      const handled = await handlePaymentUrls(mini_app_invoice_url);
 
       if (!handled) {
         throw new Error('Не удалось открыть форму оплаты');
@@ -90,7 +92,7 @@ export const Cart: React.FC = () => {
     } finally {
       setIsProcessing(false);
     }
-  };
+};
 
   const handleAssetSelect = (assetValue: string) => {
     setSelectedAsset(assetValue);

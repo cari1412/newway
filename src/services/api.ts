@@ -34,16 +34,24 @@ export interface PaymentRequestParams {
 }
 
 export interface PaymentResponseData {
-  success: boolean;
-  data?: {
+  ok: boolean;
+  result?: {
     invoice_id: number;
-    amount: string;
-    asset: string;
-    status: string;
-    mini_app_url: string;
     hash: string;
+    currency_type: string;
+    asset: string;
+    amount: string;
+    pay_url: string;
+    bot_invoice_url: string;
+    mini_app_invoice_url: string;
+    web_app_invoice_url: string;
+    description: string;
+    status: string;
+    created_at: string;
+    allow_comments: boolean;
+    allow_anonymous: boolean;
+    payload: string;
   };
-  errorCode?: string;
   errorMsg?: string;
 }
 
@@ -131,7 +139,6 @@ apiClient.interceptors.response.use(
 export const api = {
   async createPayment(params: PaymentRequestParams): Promise<PaymentResponseData> {
     try {
-      // Validate required parameters
       if (!params.asset || !params.amount || !params.packageId || !params.transactionId) {
         throw new Error('Missing required payment parameters');
       }
@@ -147,8 +154,12 @@ export const api = {
 
       const response = await apiClient.post<PaymentResponseData>('/api/crypto/invoice/create', requestData);
 
-      if (!response.data.success) {
+      if (!response.data.ok) {
         throw new Error(response.data.errorMsg || 'Payment creation failed');
+      }
+
+      if (!response.data.result) {
+        throw new Error('Invalid response format: missing result data');
       }
 
       console.log('Payment creation successful:', response.data);
@@ -162,11 +173,15 @@ export const api = {
 
   async verifyPayment(transactionId: string): Promise<boolean> {
     try {
-      const response = await apiClient.post<{success: boolean; data: boolean}>('/api/crypto/verify', {
+      const response = await apiClient.post<PaymentResponseData>('/api/crypto/verify', {
         transactionId
       });
       
-      return response.data.success && response.data.data;
+      if (!response.data.ok) {
+        return false;
+      }
+
+      return response.data.result?.status === 'paid' || false;
     } catch (error) {
       console.error('Payment verification failed:', error);
       return false;
