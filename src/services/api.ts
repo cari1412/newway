@@ -25,7 +25,6 @@ declare global {
   }
 }
 
-// Интерфейсы для API
 export interface PaymentRequestParams {
   transactionId: string;
   packageId: string;
@@ -35,27 +34,28 @@ export interface PaymentRequestParams {
   paymentMethod: 'ton' | 'crypto';
 }
 
-export interface PaymentData {
-  invoice_id: number;
-  hash: string;
-  asset: string;
-  amount: string;
-  status: string;
-  bot_invoice_url: string;
-  mini_app_invoice_url: string;
-  web_app_invoice_url: string;
-  currency_type: 'crypto' | 'fiat';
-  description?: string;
-  payload?: string;
-}
-
 export interface PaymentResponse {
-  success: boolean;
-  data: PaymentData;
-  errorMsg?: string;
+  ok: boolean;
+  result: {
+    invoice_id: number;
+    hash: string;
+    currency_type: string;
+    asset: string;
+    amount: string;
+    pay_url: string;
+    bot_invoice_url: string;
+    mini_app_invoice_url: string;
+    web_app_invoice_url: string;
+    description: string;
+    status: string;
+    created_at: string;
+    allow_comments: boolean;
+    allow_anonymous: boolean;
+    payload: string;
+  };
+  error?: string;
 }
 
-// Остальные интерфейсы
 export interface Package {
   id: string;
   name: string;
@@ -92,7 +92,6 @@ export interface LocationNetwork {
   operatorList: OperatorInfo[];
 }
 
-// Создание клиента axios
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
@@ -100,10 +99,9 @@ const apiClient = axios.create({
   }
 });
 
-// Добавляем перехватчики
 apiClient.interceptors.request.use(
   (config) => {
-    console.log('Request:', config.data);
+    console.log('🚀 Request:', config.data);
     return config;
   },
   (error) => {
@@ -114,7 +112,7 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('Response:', response.data);
+    console.log('✅ Response:', response.data);
     return response;
   },
   (error) => {
@@ -123,7 +121,6 @@ apiClient.interceptors.response.use(
   }
 );
 
-// API методы
 export const api = {
   async createPayment(params: PaymentRequestParams): Promise<PaymentResponse> {
     try {
@@ -144,8 +141,8 @@ export const api = {
 
       const response = await apiClient.post<PaymentResponse>('/api/v1/open/payments/create', requestData);
 
-      if (!response.data.success || !response.data.data) {
-        throw new Error(response.data.errorMsg || 'Payment creation failed');
+      if (!response.data.ok || !response.data.result) {
+        throw new Error('Payment creation failed');
       }
 
       return response.data;

@@ -55,15 +55,18 @@ export const Cart: React.FC = () => {
 
         const response = await api.createPayment(paymentData);
 
-        if (response.success && response.data?.mini_app_invoice_url) {
+        if (response.ok && response.result.mini_app_invoice_url) {
           if (window.Telegram?.WebApp) {
-            window.Telegram.WebApp.openInvoice(response.data.mini_app_invoice_url);
+            console.log('Opening invoice URL:', response.result.mini_app_invoice_url);
+            window.Telegram.WebApp.openInvoice(response.result.mini_app_invoice_url);
           } else {
-            window.location.href = response.data.web_app_invoice_url || response.data.bot_invoice_url;
+            console.log('Opening fallback URL:', response.result.web_app_invoice_url);
+            window.location.href = response.result.web_app_invoice_url || response.result.bot_invoice_url;
           }
           break;
         } else {
-          throw new Error('Invalid payment response');
+          console.error('Invalid payment response:', response);
+          throw new Error('Некорректный ответ от сервера');
         }
       }
     } catch (error) {
