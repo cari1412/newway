@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Section, Cell, List, Button } from '@telegram-apps/telegram-ui';
 import { useCart } from '@/hooks/useCart';
 import { formatPrice } from '@/utils/formats';
@@ -25,42 +25,39 @@ export const Cart: React.FC = () => {
   const { items, removeFromCart, getTotalPrice } = useCart();
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<string>(SUPPORTED_ASSETS[0].value);
+  const [webApp, setWebApp] = useState<any>(null);
 
-  // Check if we're in Telegram WebApp environment
-  const isTelegramWebApp = useCallback((): boolean => {
-    return typeof window !== 'undefined' && 
-           'Telegram' in window && 
-           'WebApp' in window.Telegram;
+  // Инициализация Telegram WebApp
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+      setWebApp(window.Telegram.WebApp);
+      window.Telegram.WebApp.ready();
+      console.log('Telegram WebApp initialized');
+    } else {
+      console.log('Telegram WebApp not available');
+    }
   }, []);
 
-  // Handle opening invoice URL in Telegram WebApp
-  const handlePaymentUrl = async (invoice_url: string, type: string): Promise<boolean> => {
+  // Открытие инвойса
+  const openInvoice = async (url: string): Promise<boolean> => {
     try {
-      if (!invoice_url) {
-        console.log(`No ${type} URL provided`);
+      if (!webApp) {
+        console.error('Telegram WebApp not initialized');
         return false;
       }
 
-      console.log(`Attempting to open ${type} URL:`, invoice_url);
-
-      if (type === 'mini_app' && isTelegramWebApp()) {
-        await window.Telegram.WebApp.openInvoice(invoice_url);
-        return true;
-      } else if (['web_app', 'bot'].includes(type)) {
-        window.location.href = invoice_url;
-        return true;
-      }
-
-      return false;
+      console.log('Attempting to open invoice URL:', url);
+      await webApp.openInvoice(url);
+      console.log('Invoice opened successfully');
+      return true;
     } catch (error) {
-      console.error(`Failed to open ${type} invoice:`, error);
+      console.error('Error opening invoice:', error);
       return false;
     }
   };
 
-  // Main payment handler
+  // Обработка платежа
   const handlePayment = async () => {
-    // Validation checks
     if (items.length === 0) {
       toast.error('Корзина пуста');
       return;
@@ -71,12 +68,16 @@ export const Cart: React.FC = () => {
       return;
     }
 
+    if (!webApp) {
+      toast.error('Ошибка инициализации платежной системы');
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
       const item = items[0];
       
-      // Create unique transaction ID
       const paymentData: PaymentRequestParams = {
         transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         packageId: item.id,
@@ -84,11 +85,10 @@ export const Cart: React.FC = () => {
         asset: selectedAsset
       };
 
-      console.log('Initiating payment request:', paymentData);
+      console.log('Creating payment:', paymentData);
       
-      // Create payment
       const response = await api.createPayment(paymentData);
-      console.log('Payment response received:', response);
+      console.log('Payment response:', response);
 
       if (!response.success || !response.data) {
         throw new Error(response.errorMsg || 'Ошибка при создании платежа');
@@ -100,53 +100,51 @@ export const Cart: React.FC = () => {
         bot_invoice_url 
       } = response.data;
 
-      console.log('Available payment URLs:', {
-        mini_app: mini_app_invoice_url ? 'Available' : 'Not available',
-        web_app: web_app_invoice_url ? 'Available' : 'Not available',
-        bot: bot_invoice_url ? 'Available' : 'Not available'
-      });
+      // Пробуем все доступные способы оплаты
+      let paymentInitiated = false;
 
-      // Try payment methods in order of preference
-      let paymentSuccess = false;
-
-      // 1. Try mini app invoice first (best user experience)
-      if (!paymentSuccess && mini_app_invoice_url) {
-        paymentSuccess = await handlePaymentUrl(mini_app_invoice_url, 'mini_app');
+      // 1. Пробуем mini_app_invoice_url
+      if (mini_app_invoice_url) {
+        console.log('Trying mini app invoice URL');
+        paymentInitiated = await openInvoice(mini_app_invoice_url);
       }
 
-      // 2. Try web app invoice as fallback
-      if (!paymentSuccess && web_app_invoice_url) {
-        paymentSuccess = await handlePaymentUrl(web_app_invoice_url, 'web_app');
+      // 2. Если не получилось, пробуем web_app_invoice_url
+      if (!paymentInitiated && web_app_invoice_url) {
+        console.log('Redirecting to web app invoice');
+        window.location.href = web_app_invoice_url;
+        paymentInitiated = true;
       }
 
-      // 3. Try bot invoice as last resort
-      if (!paymentSuccess && bot_invoice_url) {
-        paymentSuccess = await handlePaymentUrl(bot_invoice_url, 'bot');
+      // 3. Как последний вариант, пробуем bot_invoice_url
+      if (!paymentInitiated && bot_invoice_url) {
+        console.log('Redirecting to bot invoice');
+        window.location.href = bot_invoice_url;
+        paymentInitiated = true;
       }
 
-      if (!paymentSuccess) {
-        throw new Error('Не удалось открыть форму оплаты. Пожалуйста, попробуйте позже');
+      if (!paymentInitiated) {
+        throw new Error('Не удалось открыть форму оплаты');
       }
 
     } catch (error) {
-      console.error('Payment processing error:', error);
+      console.error('Payment error:', error);
       toast.error(
         error instanceof Error 
           ? error.message 
-          : 'Произошла ошибка при обработке платежа. Пожалуйста, попробуйте позже'
+          : 'Ошибка при обработке платежа'
       );
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Asset selection handler
   const handleAssetSelect = (assetValue: string) => {
     setSelectedAsset(assetValue);
     console.log('Selected asset:', assetValue);
   };
 
-  // Render empty cart state
+  // Render пустой корзины
   if (items.length === 0) {
     return (
       <div className="w-full">
@@ -157,7 +155,7 @@ export const Cart: React.FC = () => {
     );
   }
 
-  // Render cart with items
+  // Основной render
   return (
     <div className="w-full">
       <List>
@@ -202,7 +200,10 @@ export const Cart: React.FC = () => {
         <Section>
           <Cell>
             <div className="text-sm text-gray-400">
-              Выбрана валюта: {SUPPORTED_ASSETS.find(a => a.value === selectedAsset)?.label || 'Не выбрана'}
+              {webApp ? 
+                `Выбрана валюта: ${SUPPORTED_ASSETS.find(a => a.value === selectedAsset)?.label || 'Не выбрана'}` :
+                'Инициализация платежной системы...'
+              }
             </div>
           </Cell>
           <Cell after={formatPrice(getTotalPrice())}>
@@ -215,7 +216,7 @@ export const Cart: React.FC = () => {
                 mode="filled"
                 stretched
                 onClick={handlePayment}
-                disabled={isProcessing || !selectedAsset}
+                disabled={isProcessing || !selectedAsset || !webApp}
               >
                 {isProcessing ? 'Создание платежа...' : 'Оплатить'}
               </Button>
