@@ -2,7 +2,6 @@ import axios from 'axios';
 
 const API_URL = 'https://web.sexystyle.site';
 
-
 // Types for Telegram WebApp
 export interface TelegramWebApp {
   openInvoice(url: string): Promise<void>;
@@ -17,7 +16,6 @@ export interface TelegramWebApp {
   };
 }
 
-// Extend the global Window interface
 declare global {
   interface Window {
     Telegram: {
@@ -32,13 +30,13 @@ export interface PaymentRequestParams {
   packageId: string;
   amount: string;
   asset: string;
-  currency_type: 'crypto' | 'fiat';
-  paymentMethod: 'ton' | 'crypto';
+  currency_type: string;
+  paymentMethod: string;
 }
 
 export interface PaymentResponseData {
-  ok: boolean;
-  result?: {
+  success: boolean;
+  data?: {
     invoice_id: number;
     hash: string;
     currency_type: string;
@@ -55,8 +53,8 @@ export interface PaymentResponseData {
     allow_anonymous: boolean;
     payload: string;
   };
-  error?: string;
-  error_code?: number;
+  errorMsg?: string;
+  errorCode?: string;
 }
 
 // Package Types
@@ -143,35 +141,21 @@ apiClient.interceptors.response.use(
 export const api = {
   async createPayment(params: PaymentRequestParams): Promise<PaymentResponseData> {
     try {
-      // Validate required parameters
-      if (!params.asset || !params.amount || !params.packageId || !params.transactionId) {
-        throw new Error('Missing required payment parameters');
-      }
-
-      const requestData: PaymentRequestParams = {
-        transactionId: params.transactionId,
-        packageId: params.packageId,
-        amount: params.amount.toString(),
-        asset: params.asset.toUpperCase(),
-        currency_type: 'crypto',
-        paymentMethod: params.asset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
-      };
-
-      console.log('Creating payment with data:', requestData);
-
-      const response = await apiClient.post<PaymentResponseData>('/api/crypto/invoice/create', requestData);
-
-      // Validate response structure
-      if (!response.data || typeof response.data !== 'object') {
-        throw new Error('Invalid response format from server');
-      }
-
-      // Log successful response
-      console.log('Payment creation successful:', response.data);
-
+      console.log('Creating payment with params:', params);
+      const response = await apiClient.post<PaymentResponseData>('/api/crypto/invoice/create', params);
+      
+      console.log('Payment creation response:', response.data);
+      
       return response.data;
     } catch (error) {
       console.error('Payment creation failed:', error);
+      if (axios.isAxiosError(error)) {
+        return {
+          success: false,
+          errorMsg: error.response?.data?.errorMsg || error.message,
+          errorCode: error.response?.status?.toString() || '500'
+        };
+      }
       throw error;
     }
   },

@@ -1,4 +1,3 @@
-// Cart.tsx
 import React from 'react';
 import { Section, Cell, List, Button } from '@telegram-apps/telegram-ui';
 import { useCart } from '@/hooks/useCart';
@@ -73,7 +72,6 @@ export const Cart: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      // Process one item at a time for now
       const item = items[0];
       
       const paymentData: PaymentRequestParams = {
@@ -85,24 +83,19 @@ export const Cart: React.FC = () => {
         paymentMethod: selectedAsset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
       };
 
+      console.log('Creating payment:', paymentData);
+      
       const response = await api.createPayment(paymentData);
+      console.log('Payment API response:', response);
 
-      if (!response.ok || !response.result) {
-        console.error('Invalid payment response:', response);
-        throw new Error('Некорректный ответ от сервера');
-      }
-
-      const { mini_app_invoice_url, web_app_invoice_url, bot_invoice_url } = response.result;
-
-      // Validate that we have at least one payment URL
-      if (!mini_app_invoice_url && !web_app_invoice_url && !bot_invoice_url) {
-        throw new Error('Не получены URL для оплаты');
+      if (!response.success || !response.data) {
+        throw new Error(response.errorMsg || 'Некорректный ответ от сервера');
       }
 
       const handled = await handlePaymentUrls(
-        mini_app_invoice_url,
-        web_app_invoice_url,
-        bot_invoice_url
+        response.data.mini_app_invoice_url,
+        response.data.web_app_invoice_url,
+        response.data.bot_invoice_url
       );
 
       if (!handled) {
