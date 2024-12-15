@@ -1,4 +1,3 @@
-// pages/PlanDetails/PlanDetails.tsx
 import { Section, Cell, List, Button, Spinner } from '@telegram-apps/telegram-ui';
 import { FC, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -21,8 +20,8 @@ const PlanDetails: FC = () => {
 
       try {
         setLoading(true);
-        const packages = await api.getPackages();
-        const matchingPlan = packages.find((p: Package) => p.id === planId);
+        const response = await api.getPackages();
+        const matchingPlan = response.packageList.find((p: Package) => p.id === planId);
         
         if (matchingPlan) {
           setPlan(matchingPlan);

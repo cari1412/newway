@@ -160,18 +160,25 @@ export const api = {
     }
   },
 
-  async getPackages(location?: string): Promise<Package[]> {
+  async getPackages(params: { location?: string; page?: number; limit?: number; } = {}): Promise<{
+    packageList: Package[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }> {
     try {
       const response = await apiClient.post('/api/v1/open/package/list', {
-        locationCode: location || '',
-        type: 'BASE'
+        locationCode: params.location || '',
+        type: 'BASE',
+        page: params.page || 1,
+        limit: params.limit || 20
       });
 
       if (!response.data.success) {
         throw new Error(response.data.errorMsg || 'Failed to fetch packages');
       }
 
-      return response.data.obj?.packageList || [];
+      return response.data.obj;
     } catch (error) {
       console.error('Failed to fetch packages:', error);
       throw error;

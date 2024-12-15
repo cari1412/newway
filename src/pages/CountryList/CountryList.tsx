@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Section, Cell, List, Spinner } from '@telegram-apps/telegram-ui';
 import { Page } from '@/components/Page';
-import { api } from '@/services/api';
+import { api, Package } from '@/services/api';
 import { getFlagEmoji, formatPrice, formatPlansCount } from '@/utils/formats';
+import { useInView } from 'react-intersection-observer';
 
 // Словарь названий стран
 const countryNames: Record<string, string> = {
@@ -20,7 +21,6 @@ const countryNames: Record<string, string> = {
   DO: 'Доминиканская Республика',
 };
 
-// Интерфейсы для типизации
 interface DisplayCountry {
   locationCode: string;
   name: string;
@@ -28,63 +28,33 @@ interface DisplayCountry {
   plansCount: number;
 }
 
-interface CacheData {
-  data: DisplayCountry[];
-  timestamp: number;
-}
-
-// Константы для кэширования
-const CACHE_KEY = 'countries_cache';
-const CACHE_EXPIRY = 5 * 60 * 1000; // 5 минут
-
-// Вспомогательные функции
-const getCachedData = (): DisplayCountry[] | null => {
-  try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (!cached) return null;
-
-    const { data, timestamp }: CacheData = JSON.parse(cached);
-    if (Date.now() - timestamp > CACHE_EXPIRY) {
-      localStorage.removeItem(CACHE_KEY);
-      return null;
-    }
-    return data;
-  } catch {
-    return null;
-  }
-};
-
-const setCachedData = (data: DisplayCountry[]): void => {
-  try {
-    const cacheData: CacheData = {
-      data,
-      timestamp: Date.now()
-    };
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-  } catch (err) {
-    console.error('Cache save error:', err);
-  }
-};
+const ITEMS_PER_PAGE = 10;
 
 export const CountryList = () => {
   const navigate = useNavigate();
-  const [countries, setCountries] = useState<DisplayCountry[]>(() => getCachedData() || []);
-  const [loading, setLoading] = useState(!countries.length);
+  const [countries, setCountries] = useState<DisplayCountry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [allCountries, setAllCountries] = useState<DisplayCountry[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  
+  const { ref, inView } = useInView({
+    threshold: 0.5,
+  });
 
-  // Загрузка данных о странах
+  // Начальная загрузка всех данных
   useEffect(() => {
-    const loadCountries = async (): Promise<void> => {
-      if (countries.length) return;
-
+    const loadInitialData = async () => {
       try {
         setLoading(true);
-        const data = await api.getPackages();
+        const response = await api.getPackages();
+        const packages = response.packageList;
         
         // Преобразуем и группируем данные по странам
         const countryMap = new Map<string, DisplayCountry>();
         
-        data.forEach(pkg => {
+        packages.forEach((pkg: Package) => {
           pkg.location.forEach((locationCode: string) => {
             const code = locationCode.trim();
             if (!code) return;
@@ -110,10 +80,11 @@ export const CountryList = () => {
         const sortedCountries = Array.from(countryMap.values())
           .sort((a, b) => a.name.localeCompare(b.name));
 
-        setCountries(sortedCountries);
-        setCachedData(sortedCountries);
+        setAllCountries(sortedCountries);
+        // Загружаем первую страницу
+        setCountries(sortedCountries.slice(0, ITEMS_PER_PAGE));
+        setHasMore(sortedCountries.length > ITEMS_PER_PAGE);
         setError(null);
-
       } catch (err) {
         console.error('Failed to load countries:', err);
         setError('Ошибка загрузки данных. Пожалуйста, попробуйте позже');
@@ -122,68 +93,79 @@ export const CountryList = () => {
       }
     };
 
-    loadCountries();
-  }, [countries.length]);
+    loadInitialData();
+  }, []);
 
-  // Обработчик перехода к стране
+  // Загрузка следующей страницы при прокрутке
+  useEffect(() => {
+    if (inView && hasMore && !loading) {
+      const nextPage = page + 1;
+      const start = (nextPage - 1) * ITEMS_PER_PAGE;
+      const end = start + ITEMS_PER_PAGE;
+      const newCountries = allCountries.slice(start, end);
+      
+      setCountries(prev => [...prev, ...newCountries]);
+      setPage(nextPage);
+      setHasMore(end < allCountries.length);
+    }
+  }, [inView, hasMore, loading, page, allCountries]);
+
   const handleCountryClick = (locationCode: string): void => {
     navigate(`/country/${locationCode}`);
   };
 
-  // Мемоизированный рендер списка
-  const renderedCountries = useMemo(() => {
-    if (loading && !countries.length) {
-      return (
+  if (loading && !countries.length) {
+    return (
+      <Page back={false}>
         <div className="flex justify-center p-4">
           <Spinner size="m" />
         </div>
-      );
-    }
+      </Page>
+    );
+  }
 
-    if (error) {
-      return (
+  if (error) {
+    return (
+      <Page back={false}>
         <Section header="Ошибка">
           <Cell>{error}</Cell>
         </Section>
-      );
-    }
-
-    if (!countries.length) {
-      return (
-        <Section header="Нет данных">
-          <Cell>Список стран пуст. Пожалуйста, попробуйте позже.</Cell>
-        </Section>
-      );
-    }
-
-    return (
-      <Section
-        header="Доступные страны"
-        footer="Выберите страну для просмотра доступных eSIM тарифов"
-      >
-        {countries.map((country) => (
-          <Cell
-            key={country.locationCode}
-            onClick={() => handleCountryClick(country.locationCode)}
-            before={
-              <span className="text-2xl inline-block min-w-8">
-                {getFlagEmoji(country.locationCode)}
-              </span>
-            }
-            subtitle={`От ${formatPrice(country.minPrice)} • ${formatPlansCount(country.plansCount)}`}
-            multiline
-          >
-            {country.name}
-          </Cell>
-        ))}
-      </Section>
+      </Page>
     );
-  }, [countries, loading, error, navigate]);
+  }
 
   return (
     <Page back={false}>
       <List>
-        {renderedCountries}
+        <Section
+          header="Доступные страны"
+          footer="Выберите страну для просмотра доступных eSIM тарифов"
+        >
+          {countries.map((country) => (
+            <Cell
+              key={country.locationCode}
+              onClick={() => handleCountryClick(country.locationCode)}
+              before={
+                <span className="text-2xl inline-block min-w-8">
+                  {getFlagEmoji(country.locationCode)}
+                </span>
+              }
+              subtitle={`От ${formatPrice(country.minPrice)} • ${formatPlansCount(country.plansCount)}`}
+              multiline
+            >
+              {country.name}
+            </Cell>
+          ))}
+          
+          {/* Элемент для отслеживания прокрутки */}
+          <div ref={ref} style={{ height: '20px' }}>
+            {loading && hasMore && (
+              <div className="flex justify-center p-4">
+                <Spinner size="s" />
+              </div>
+            )}
+          </div>
+        </Section>
       </List>
     </Page>
   );

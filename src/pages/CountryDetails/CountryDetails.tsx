@@ -4,6 +4,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Page } from '@/components/Page';
 import { api, type Package } from '@/services/api';
 import { formatPrice, formatValidity } from '@/utils/formats';
+import { useInView } from 'react-intersection-observer';
+
+const ITEMS_PER_PAGE = 20;
 
 export const CountryDetails: FC = () => {
   const { countryId } = useParams();
@@ -11,31 +14,63 @@ export const CountryDetails: FC = () => {
   const [plans, setPlans] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
-  useEffect(() => {
-    const loadPlans = async () => {
-      if (!countryId) return;
+  const { ref, inView } = useInView({
+    threshold: 0.5,
+  });
 
-      try {
-        setLoading(true);
-        const packages = await api.getPackages(countryId);
-        const countryPackages = packages.filter(pkg => 
-          pkg.location.includes(countryId.toUpperCase())
-        );
+  // Загрузка планов
+  const loadPlans = async (currentPage: number, isFirstLoad: boolean = false) => {
+    if (!countryId) return;
+
+    try {
+      setLoading(true);
+      const response = await api.getPackages({
+        location: countryId.toUpperCase(),
+        page: currentPage,
+        limit: ITEMS_PER_PAGE
+      });
+
+      const countryPackages = response.packageList.filter((pkg: Package) => 
+        pkg.location.includes(countryId.toUpperCase())
+      );
+
+      if (isFirstLoad) {
         setPlans(countryPackages);
-        setError(null);
-      } catch (err) {
-        console.error('Failed to load plans:', err);
-        setError('Ошибка загрузки тарифов. Пожалуйста, попробуйте позже.');
-      } finally {
-        setLoading(false);
+      } else {
+        setPlans(prev => [...prev, ...countryPackages]);
       }
-    };
 
-    loadPlans();
+      setHasMore(response.page < response.totalPages);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to load plans:', err);
+      setError('Ошибка загрузки тарифов. Пожалуйста, попробуйте позже.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Первоначальная загрузка
+  useEffect(() => {
+    setPlans([]);
+    setPage(1);
+    setHasMore(true);
+    loadPlans(1, true);
   }, [countryId]);
 
-  if (loading) {
+  // Загрузка при скролле
+  useEffect(() => {
+    if (inView && hasMore && !loading) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      loadPlans(nextPage);
+    }
+  }, [inView, hasMore, loading]);
+
+  if (loading && plans.length === 0) {
     return (
       <Page>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
@@ -77,12 +112,21 @@ export const CountryDetails: FC = () => {
               key={plan.id}
               onClick={() => navigate(`/plan/${plan.id}`)}
               subtitle={`${plan.data} • ${formatValidity(plan.validity)}`}
-              after={formatPrice(plan.price)} // Заменено с retailPrice на price
+              after={formatPrice(plan.price)}
               multiline
             >
               {plan.name}
             </Cell>
           ))}
+
+          {/* Элемент для отслеживания прокрутки */}
+          <div ref={ref} style={{ height: '20px' }}>
+            {loading && hasMore && (
+              <div className="flex justify-center p-4">
+                <Spinner size="s" />
+              </div>
+            )}
+          </div>
         </Section>
       </List>
     </Page>
