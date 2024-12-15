@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const API_URL = 'https://web.sexystyle.site';
 
+
 // Types for Telegram WebApp
 export interface TelegramWebApp {
   openInvoice(url: string): Promise<void>;
@@ -16,6 +17,7 @@ export interface TelegramWebApp {
   };
 }
 
+// Extend the global Window interface
 declare global {
   interface Window {
     Telegram: {
@@ -30,11 +32,13 @@ export interface PaymentRequestParams {
   packageId: string;
   amount: string;
   asset: string;
+  currency_type: 'crypto' | 'fiat';
+  paymentMethod: 'ton' | 'crypto';
 }
 
 export interface PaymentResponseData {
-  success: boolean;
-  data?: {
+  ok: boolean;
+  result?: {
     invoice_id: number;
     hash: string;
     currency_type: string;
@@ -51,7 +55,8 @@ export interface PaymentResponseData {
     allow_anonymous: boolean;
     payload: string;
   };
-  errorMsg?: string;
+  error?: string;
+  error_code?: number;
 }
 
 // Package Types
@@ -138,37 +143,35 @@ apiClient.interceptors.response.use(
 export const api = {
   async createPayment(params: PaymentRequestParams): Promise<PaymentResponseData> {
     try {
+      // Validate required parameters
       if (!params.asset || !params.amount || !params.packageId || !params.transactionId) {
         throw new Error('Missing required payment parameters');
       }
 
-      const requestData = {
+      const requestData: PaymentRequestParams = {
         transactionId: params.transactionId,
         packageId: params.packageId,
         amount: params.amount.toString(),
-        asset: params.asset.toUpperCase()
+        asset: params.asset.toUpperCase(),
+        currency_type: 'crypto',
+        paymentMethod: params.asset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
       };
 
       console.log('Creating payment with data:', requestData);
 
       const response = await apiClient.post<PaymentResponseData>('/api/crypto/invoice/create', requestData);
 
-      if (!response.data.success) {
-        throw new Error(response.data.errorMsg || 'Payment creation failed');
+      // Validate response structure
+      if (!response.data || typeof response.data !== 'object') {
+        throw new Error('Invalid response format from server');
       }
 
-      if (!response.data.data) {
-        throw new Error('Invalid response format: missing data');
-      }
-
+      // Log successful response
       console.log('Payment creation successful:', response.data);
 
       return response.data;
     } catch (error) {
       console.error('Payment creation failed:', error);
-      if (axios.isAxiosError(error) && error.response?.status === 502) {
-        throw new Error('Сервис оплаты временно недоступен. Пожалуйста, попробуйте позже');
-      }
       throw error;
     }
   },
@@ -198,6 +201,7 @@ export const api = {
       });
     } catch (error) {
       console.error('Failed to log package selection:', error);
+      // Don't throw error for logging failures
     }
   }
 };

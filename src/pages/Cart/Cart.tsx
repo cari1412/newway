@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// Cart.tsx
+import React from 'react';
 import { Section, Cell, List, Button } from '@telegram-apps/telegram-ui';
 import { useCart } from '@/hooks/useCart';
 import { formatPrice } from '@/utils/formats';
@@ -23,175 +24,103 @@ const SUPPORTED_ASSETS: readonly AssetType[] = [
 
 export const Cart: React.FC = () => {
   const { items, removeFromCart, getTotalPrice } = useCart();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<string>('TON'); // Явно устанавливаем TON как начальное значение
-  
-  // Добавляем эффект для отслеживания изменений selectedAsset
-  useEffect(() => {
-    console.log('Current selected asset:', selectedAsset);
-  }, [selectedAsset]);
-  const [webApp, setWebApp] = useState<any>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isProcessing, setIsProcessing] = React.useState(false);
+  const [selectedAsset, setSelectedAsset] = React.useState<string>(SUPPORTED_ASSETS[0].value);
 
-  // Инициализация Telegram WebApp
-  // Инициализация Telegram WebApp
-  useEffect(() => {
-    const initWebApp = () => {
+  const handlePaymentUrls = async (
+    mini_app_invoice_url: string,
+    web_app_invoice_url: string,
+    bot_invoice_url: string
+  ) => {
+    // Check if we're in Telegram environment
+    if (typeof window !== 'undefined' && 'Telegram' in window) {
       try {
-        if (window?.Telegram?.WebApp) {
-          const app = window.Telegram.WebApp;
-          // Устанавливаем состояние webApp перед вызовом ready()
-          setWebApp(app);
-          setIsInitialized(true);
-          
-          // Сообщаем Telegram что приложение готово
-          app.ready();
-          app.expand(); // Расширяем окно приложения
-          
-          console.log('Telegram WebApp initialized successfully');
-        } else {
-          console.log('Waiting for Telegram WebApp...');
-          // Повторяем попытку через 100мс
-          setTimeout(initWebApp, 100);
+        // Try mini app invoice URL first
+        if (mini_app_invoice_url) {
+          await window.Telegram.WebApp.openInvoice(mini_app_invoice_url);
+          return true;
         }
       } catch (error) {
-        console.error('Error initializing WebApp:', error);
+        console.error('Failed to open mini app invoice:', error);
       }
-    };
-
-    // Начинаем инициализацию
-    console.log('Starting WebApp initialization...');
-    initWebApp();
-
-    return () => {
-      // Cleanup если нужно
-      setIsInitialized(false);
-    };
-  }, []); // Пустой массив зависимостей для однократного запуска
-
-  // Открытие инвойса
-  const openInvoice = async (url: string): Promise<boolean> => {
-    try {
-      if (!webApp) {
-        console.error('Telegram WebApp not initialized');
-        return false;
-      }
-
-      console.log('Attempting to open invoice URL:', url);
-      await webApp.openInvoice(url);
-      console.log('Invoice opened successfully');
-      return true;
-    } catch (error) {
-      console.error('Error opening invoice:', error);
-      return false;
     }
+
+    // Fallback options in order of preference
+    if (web_app_invoice_url) {
+      window.location.href = web_app_invoice_url;
+      return true;
+    }
+
+    if (bot_invoice_url) {
+      window.location.href = bot_invoice_url;
+      return true;
+    }
+
+    return false;
   };
 
-  // Проверка возможности оплаты
-  // Проверка возможности оплаты
-  const canProceedToPayment = () => {
-    const hasItems = items.length > 0;
-    const hasSelectedAsset = Boolean(selectedAsset);
-    const hasWebApp = Boolean(webApp);
-    const isReady = isInitialized;
-    const notProcessing = !isProcessing;
-
-    // Логируем состояние всех условий
-    console.log('Payment availability:', {
-      hasItems,
-      hasSelectedAsset,
-      hasWebApp,
-      isReady,
-      notProcessing
-    });
-
-    return hasItems && hasSelectedAsset && hasWebApp && isReady && notProcessing;
-  };
-
-  // Обработка платежа
   const handlePayment = async () => {
-    if (!canProceedToPayment()) {
-      toast.error('Невозможно выполнить оплату. Проверьте все условия.');
+    if (items.length === 0) {
+      toast.error('Корзина пуста');
+      return;
+    }
+
+    if (!selectedAsset) {
+      toast.error('Выберите криптовалюту для оплаты');
       return;
     }
 
     setIsProcessing(true);
 
     try {
+      // Process one item at a time for now
       const item = items[0];
       
       const paymentData: PaymentRequestParams = {
         transactionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         packageId: item.id,
         amount: item.price.toString(),
-        asset: selectedAsset
+        asset: selectedAsset,
+        currency_type: 'crypto',
+        paymentMethod: selectedAsset.toUpperCase() === 'TON' ? 'ton' : 'crypto'
       };
 
-      console.log('Creating payment:', paymentData);
-      
       const response = await api.createPayment(paymentData);
-      console.log('Payment response:', response);
 
-      if (!response.success || !response.data) {
-        throw new Error(response.errorMsg || 'Ошибка при создании платежа');
+      if (!response.ok || !response.result) {
+        console.error('Invalid payment response:', response);
+        throw new Error('Некорректный ответ от сервера');
       }
 
-      const { 
-        mini_app_invoice_url, 
-        web_app_invoice_url, 
-        bot_invoice_url 
-      } = response.data;
+      const { mini_app_invoice_url, web_app_invoice_url, bot_invoice_url } = response.result;
 
-      // Пробуем все доступные способы оплаты
-      let paymentInitiated = false;
-
-      // 1. Пробуем mini_app_invoice_url
-      if (mini_app_invoice_url) {
-        console.log('Trying mini app invoice URL');
-        paymentInitiated = await openInvoice(mini_app_invoice_url);
+      // Validate that we have at least one payment URL
+      if (!mini_app_invoice_url && !web_app_invoice_url && !bot_invoice_url) {
+        throw new Error('Не получены URL для оплаты');
       }
 
-      // 2. Если не получилось, пробуем web_app_invoice_url
-      if (!paymentInitiated && web_app_invoice_url) {
-        console.log('Redirecting to web app invoice');
-        window.location.href = web_app_invoice_url;
-        paymentInitiated = true;
-      }
+      const handled = await handlePaymentUrls(
+        mini_app_invoice_url,
+        web_app_invoice_url,
+        bot_invoice_url
+      );
 
-      // 3. Как последний вариант, пробуем bot_invoice_url
-      if (!paymentInitiated && bot_invoice_url) {
-        console.log('Redirecting to bot invoice');
-        window.location.href = bot_invoice_url;
-        paymentInitiated = true;
-      }
-
-      if (!paymentInitiated) {
+      if (!handled) {
         throw new Error('Не удалось открыть форму оплаты');
       }
 
     } catch (error) {
       console.error('Payment error:', error);
-      toast.error(
-        error instanceof Error 
-          ? error.message 
-          : 'Ошибка при обработке платежа'
-      );
+      toast.error(error instanceof Error ? error.message : 'Ошибка при создании платежа');
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleAssetSelect = (assetValue: string) => {
-    console.log('handleAssetSelect called with:', assetValue);
     setSelectedAsset(assetValue);
-    
-    // Добавляем таймаут для проверки обновления состояния
-    setTimeout(() => {
-      console.log('Selected asset after update:', selectedAsset);
-    }, 0);
   };
 
-  // Render пустой корзины
   if (items.length === 0) {
     return (
       <div className="w-full">
@@ -202,7 +131,6 @@ export const Cart: React.FC = () => {
     );
   }
 
-  // Основной render
   return (
     <div className="w-full">
       <List>
@@ -232,33 +160,22 @@ export const Cart: React.FC = () => {
 
         <Section header="Способ оплаты">
           <Cell>Выберите криптовалюту для оплаты:</Cell>
-          {SUPPORTED_ASSETS.map((asset) => {
-            const isSelected = selectedAsset === asset.value;
-            console.log(`Rendering asset ${asset.value}, isSelected:`, isSelected);
-            
-            return (
-              <Cell
-                key={asset.value}
-                onClick={() => {
-                  console.log('Cell clicked:', asset.value);
-                  handleAssetSelect(asset.value);
-                }}
-                after={isSelected ? '✓' : null}
-                className={`cursor-pointer hover:bg-gray-100/10 ${isSelected ? 'bg-gray-100/20' : ''}`}
-              >
-                {asset.label}
-              </Cell>
-            );
-          })}
+          {SUPPORTED_ASSETS.map((asset) => (
+            <Cell
+              key={asset.value}
+              onClick={() => handleAssetSelect(asset.value)}
+              after={selectedAsset === asset.value ? '✓' : null}
+              className="cursor-pointer hover:bg-gray-100/10"
+            >
+              {asset.label}
+            </Cell>
+          ))}
         </Section>
 
         <Section>
           <Cell>
             <div className="text-sm text-gray-400">
-              {isInitialized ? 
-                `Выбрана валюта: ${SUPPORTED_ASSETS.find(a => a.value === selectedAsset)?.label || 'Не выбрана'}` :
-                'Инициализация платежной системы...'
-              }
+              Выбрана валюта: {SUPPORTED_ASSETS.find(a => a.value === selectedAsset)?.label || 'Не выбрана'}
             </div>
           </Cell>
           <Cell after={formatPrice(getTotalPrice())}>
@@ -271,23 +188,10 @@ export const Cart: React.FC = () => {
                 mode="filled"
                 stretched
                 onClick={handlePayment}
-                disabled={!canProceedToPayment()}
+                disabled={isProcessing || !selectedAsset}
               >
                 {isProcessing ? 'Создание платежа...' : 'Оплатить'}
               </Button>
-              {/* Информация о статусе */}
-              <div className="mt-2 text-xs text-gray-500">
-                {!canProceedToPayment() && (
-                  <div>
-                    Статус: 
-                    {!items.length && ' Корзина пуста.'} 
-                    {!selectedAsset && ' Не выбрана валюта.'} 
-                    {!webApp && ' WebApp не найден.'}
-                    {!isInitialized && ' WebApp не инициализирован.'}
-                    {isProcessing && ' Идет обработка платежа.'}
-                  </div>
-                )}
-              </div>
             </div>
           </Cell>
         </Section>
