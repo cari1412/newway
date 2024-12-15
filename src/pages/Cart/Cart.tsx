@@ -26,16 +26,25 @@ export const Cart: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<string>(SUPPORTED_ASSETS[0].value);
   const [webApp, setWebApp] = useState<any>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Инициализация Telegram WebApp
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-      setWebApp(window.Telegram.WebApp);
-      window.Telegram.WebApp.ready();
-      console.log('Telegram WebApp initialized');
-    } else {
-      console.log('Telegram WebApp not available');
-    }
+    const initWebApp = () => {
+      if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+        const app = window.Telegram.WebApp;
+        setWebApp(app);
+        app.ready();
+        setIsInitialized(true);
+        console.log('Telegram WebApp initialized');
+      } else {
+        console.log('Telegram WebApp not available');
+        // Повторяем попытку через небольшую задержку
+        setTimeout(initWebApp, 1000);
+      }
+    };
+
+    initWebApp();
   }, []);
 
   // Открытие инвойса
@@ -56,20 +65,20 @@ export const Cart: React.FC = () => {
     }
   };
 
+  // Проверка возможности оплаты
+  const canProceedToPayment = () => {
+    return (
+      items.length > 0 &&
+      selectedAsset &&
+      isInitialized &&
+      !isProcessing
+    );
+  };
+
   // Обработка платежа
   const handlePayment = async () => {
-    if (items.length === 0) {
-      toast.error('Корзина пуста');
-      return;
-    }
-
-    if (!selectedAsset) {
-      toast.error('Выберите криптовалюту для оплаты');
-      return;
-    }
-
-    if (!webApp) {
-      toast.error('Ошибка инициализации платежной системы');
+    if (!canProceedToPayment()) {
+      toast.error('Невозможно выполнить оплату. Проверьте все условия.');
       return;
     }
 
@@ -200,7 +209,7 @@ export const Cart: React.FC = () => {
         <Section>
           <Cell>
             <div className="text-sm text-gray-400">
-              {webApp ? 
+              {isInitialized ? 
                 `Выбрана валюта: ${SUPPORTED_ASSETS.find(a => a.value === selectedAsset)?.label || 'Не выбрана'}` :
                 'Инициализация платежной системы...'
               }
@@ -216,7 +225,7 @@ export const Cart: React.FC = () => {
                 mode="filled"
                 stretched
                 onClick={handlePayment}
-                disabled={isProcessing || !selectedAsset || !webApp}
+                disabled={!canProceedToPayment()}
               >
                 {isProcessing ? 'Создание платежа...' : 'Оплатить'}
               </Button>
