@@ -34,40 +34,40 @@ export const Cart: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Инициализация Telegram WebApp
+  // Инициализация Telegram WebApp
   useEffect(() => {
     const initWebApp = () => {
-      console.log('Checking Telegram WebApp availability...');
-      console.log('window.Telegram:', window.Telegram);
-      
-      if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-        const app = window.Telegram.WebApp;
-        console.log('Found Telegram WebApp:', app);
-        
-        setWebApp(app);
-        app.ready();
-        setIsInitialized(true);
-        console.log('Telegram WebApp initialized successfully');
-      } else {
-        console.log('Telegram WebApp not available, retrying...');
-        setTimeout(initWebApp, 1000);
+      try {
+        if (window?.Telegram?.WebApp) {
+          const app = window.Telegram.WebApp;
+          // Устанавливаем состояние webApp перед вызовом ready()
+          setWebApp(app);
+          setIsInitialized(true);
+          
+          // Сообщаем Telegram что приложение готово
+          app.ready();
+          app.expand(); // Расширяем окно приложения
+          
+          console.log('Telegram WebApp initialized successfully');
+        } else {
+          console.log('Waiting for Telegram WebApp...');
+          // Повторяем попытку через 100мс
+          setTimeout(initWebApp, 100);
+        }
+      } catch (error) {
+        console.error('Error initializing WebApp:', error);
       }
     };
 
+    // Начинаем инициализацию
+    console.log('Starting WebApp initialization...');
     initWebApp();
 
-    // Добавляем проверку состояния через 5 секунд
-    const timeoutId = setTimeout(() => {
-      if (!isInitialized) {
-        console.log('WebApp initialization status after 5s:', {
-          webApp,
-          isInitialized,
-          windowTelegram: window.Telegram
-        });
-      }
-    }, 5000);
-
-    return () => clearTimeout(timeoutId);
-  }, [isInitialized]);
+    return () => {
+      // Cleanup если нужно
+      setIsInitialized(false);
+    };
+  }, []); // Пустой массив зависимостей для однократного запуска
 
   // Открытие инвойса
   const openInvoice = async (url: string): Promise<boolean> => {
@@ -88,21 +88,24 @@ export const Cart: React.FC = () => {
   };
 
   // Проверка возможности оплаты
+  // Проверка возможности оплаты
   const canProceedToPayment = () => {
-    // Выводим все условия в консоль
-    const conditions = {
-      hasItems: items.length > 0,
-      hasSelectedAsset: Boolean(selectedAsset),
-      isWebAppInitialized: isInitialized,
-      isNotProcessing: !isProcessing
-    };
-    
-    console.log('Payment conditions:', conditions);
-    
-    return conditions.hasItems && 
-           conditions.hasSelectedAsset && 
-           conditions.isWebAppInitialized && 
-           conditions.isNotProcessing;
+    const hasItems = items.length > 0;
+    const hasSelectedAsset = Boolean(selectedAsset);
+    const hasWebApp = Boolean(webApp);
+    const isReady = isInitialized;
+    const notProcessing = !isProcessing;
+
+    // Логируем состояние всех условий
+    console.log('Payment availability:', {
+      hasItems,
+      hasSelectedAsset,
+      hasWebApp,
+      isReady,
+      notProcessing
+    });
+
+    return hasItems && hasSelectedAsset && hasWebApp && isReady && notProcessing;
   };
 
   // Обработка платежа
@@ -272,14 +275,16 @@ export const Cart: React.FC = () => {
               >
                 {isProcessing ? 'Создание платежа...' : 'Оплатить'}
               </Button>
-              {/* Добавляем отладочную информацию под кнопкой */}
+              {/* Информация о статусе */}
               <div className="mt-2 text-xs text-gray-500">
                 {!canProceedToPayment() && (
                   <div>
-                    Статус: {!items.length && 'Корзина пуста'} 
-                    {!selectedAsset && 'Не выбрана валюта'} 
-                    {!isInitialized && 'WebApp не инициализирован'} 
-                    {isProcessing && 'Идет обработка'}
+                    Статус: 
+                    {!items.length && ' Корзина пуста.'} 
+                    {!selectedAsset && ' Не выбрана валюта.'} 
+                    {!webApp && ' WebApp не найден.'}
+                    {!isInitialized && ' WebApp не инициализирован.'}
+                    {isProcessing && ' Идет обработка платежа.'}
                   </div>
                 )}
               </div>
