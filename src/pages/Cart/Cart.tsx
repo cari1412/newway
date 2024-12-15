@@ -24,28 +24,50 @@ const SUPPORTED_ASSETS: readonly AssetType[] = [
 export const Cart: React.FC = () => {
   const { items, removeFromCart, getTotalPrice } = useCart();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<string>(SUPPORTED_ASSETS[0].value);
+  const [selectedAsset, setSelectedAsset] = useState<string>('TON'); // Явно устанавливаем TON как начальное значение
+  
+  // Добавляем эффект для отслеживания изменений selectedAsset
+  useEffect(() => {
+    console.log('Current selected asset:', selectedAsset);
+  }, [selectedAsset]);
   const [webApp, setWebApp] = useState<any>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Инициализация Telegram WebApp
   useEffect(() => {
     const initWebApp = () => {
+      console.log('Checking Telegram WebApp availability...');
+      console.log('window.Telegram:', window.Telegram);
+      
       if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
         const app = window.Telegram.WebApp;
+        console.log('Found Telegram WebApp:', app);
+        
         setWebApp(app);
         app.ready();
         setIsInitialized(true);
-        console.log('Telegram WebApp initialized');
+        console.log('Telegram WebApp initialized successfully');
       } else {
-        console.log('Telegram WebApp not available');
-        // Повторяем попытку через небольшую задержку
+        console.log('Telegram WebApp not available, retrying...');
         setTimeout(initWebApp, 1000);
       }
     };
 
     initWebApp();
-  }, []);
+
+    // Добавляем проверку состояния через 5 секунд
+    const timeoutId = setTimeout(() => {
+      if (!isInitialized) {
+        console.log('WebApp initialization status after 5s:', {
+          webApp,
+          isInitialized,
+          windowTelegram: window.Telegram
+        });
+      }
+    }, 5000);
+
+    return () => clearTimeout(timeoutId);
+  }, [isInitialized]);
 
   // Открытие инвойса
   const openInvoice = async (url: string): Promise<boolean> => {
@@ -67,12 +89,20 @@ export const Cart: React.FC = () => {
 
   // Проверка возможности оплаты
   const canProceedToPayment = () => {
-    return (
-      items.length > 0 &&
-      selectedAsset &&
-      isInitialized &&
-      !isProcessing
-    );
+    // Выводим все условия в консоль
+    const conditions = {
+      hasItems: items.length > 0,
+      hasSelectedAsset: Boolean(selectedAsset),
+      isWebAppInitialized: isInitialized,
+      isNotProcessing: !isProcessing
+    };
+    
+    console.log('Payment conditions:', conditions);
+    
+    return conditions.hasItems && 
+           conditions.hasSelectedAsset && 
+           conditions.isWebAppInitialized && 
+           conditions.isNotProcessing;
   };
 
   // Обработка платежа
@@ -149,8 +179,13 @@ export const Cart: React.FC = () => {
   };
 
   const handleAssetSelect = (assetValue: string) => {
+    console.log('handleAssetSelect called with:', assetValue);
     setSelectedAsset(assetValue);
-    console.log('Selected asset:', assetValue);
+    
+    // Добавляем таймаут для проверки обновления состояния
+    setTimeout(() => {
+      console.log('Selected asset after update:', selectedAsset);
+    }, 0);
   };
 
   // Render пустой корзины
@@ -194,16 +229,24 @@ export const Cart: React.FC = () => {
 
         <Section header="Способ оплаты">
           <Cell>Выберите криптовалюту для оплаты:</Cell>
-          {SUPPORTED_ASSETS.map((asset) => (
-            <Cell
-              key={asset.value}
-              onClick={() => handleAssetSelect(asset.value)}
-              after={selectedAsset === asset.value ? '✓' : null}
-              className="cursor-pointer hover:bg-gray-100/10"
-            >
-              {asset.label}
-            </Cell>
-          ))}
+          {SUPPORTED_ASSETS.map((asset) => {
+            const isSelected = selectedAsset === asset.value;
+            console.log(`Rendering asset ${asset.value}, isSelected:`, isSelected);
+            
+            return (
+              <Cell
+                key={asset.value}
+                onClick={() => {
+                  console.log('Cell clicked:', asset.value);
+                  handleAssetSelect(asset.value);
+                }}
+                after={isSelected ? '✓' : null}
+                className={`cursor-pointer hover:bg-gray-100/10 ${isSelected ? 'bg-gray-100/20' : ''}`}
+              >
+                {asset.label}
+              </Cell>
+            );
+          })}
         </Section>
 
         <Section>
@@ -229,6 +272,17 @@ export const Cart: React.FC = () => {
               >
                 {isProcessing ? 'Создание платежа...' : 'Оплатить'}
               </Button>
+              {/* Добавляем отладочную информацию под кнопкой */}
+              <div className="mt-2 text-xs text-gray-500">
+                {!canProceedToPayment() && (
+                  <div>
+                    Статус: {!items.length && 'Корзина пуста'} 
+                    {!selectedAsset && 'Не выбрана валюта'} 
+                    {!isInitialized && 'WebApp не инициализирован'} 
+                    {isProcessing && 'Идет обработка'}
+                  </div>
+                )}
+              </div>
             </div>
           </Cell>
         </Section>
