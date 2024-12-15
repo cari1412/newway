@@ -1,66 +1,72 @@
 // hooks/useCart.ts
-import { useState, useEffect } from 'react';
+import { create } from 'zustand';
+import { devtools, persist } from 'zustand/middleware';
 import { Package } from '@/services/api';
 import { toast } from 'react-hot-toast';
 
-export const useCart = () => {
-  const [items, setItems] = useState<Package[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+interface CartStore {
+  items: Package[];
+  isLoading: boolean;
+  addToCart: (item: Package) => void;
+  removeFromCart: (itemId: string) => void;
+  clearCart: () => void;
+  getTotalPrice: () => number;
+  setIsLoading: (loading: boolean) => void;
+  checkoutCart: () => Promise<void>;
+}
 
-  useEffect(() => {
-    // Загружаем корзину из localStorage при инициализации
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) {
-      setItems(JSON.parse(savedCart));
-    }
-  }, []);
+export const useCart = create<CartStore>()(
+  devtools(
+    persist(
+      (set, get) => ({
+        items: [],
+        isLoading: false,
 
-  const addToCart = (item: Package) => {
-    setItems(prev => {
-      const newItems = [...prev, item];
-      localStorage.setItem('cart', JSON.stringify(newItems));
-      toast.success('План добавлен в корзину');
-      return newItems;
-    });
-  };
+        addToCart: (item) =>
+          set((state) => {
+            if (state.items.some((i) => i.id === item.id)) {
+              toast.error('Этот план уже в корзине');
+              return state;
+            }
 
-  const removeFromCart = (itemId: string) => {
-    setItems(prev => {
-      const newItems = prev.filter(item => item.id !== itemId);
-      localStorage.setItem('cart', JSON.stringify(newItems));
-      toast.success('План удален из корзины');
-      return newItems;
-    });
-  };
+            toast.success('План добавлен в корзину');
+            return { items: [...state.items, item] };
+          }),
 
-  const getTotalPrice = () => {
-    return items.reduce((total, item) => total + item.price, 0);
-  };
+        removeFromCart: (itemId) =>
+          set((state) => {
+            toast.success('План удален из корзины');
+            return { 
+              items: state.items.filter((item) => item.id !== itemId) 
+            };
+          }),
 
-  const clearCart = () => {
-    setItems([]);
-    localStorage.removeItem('cart');
-  };
+        clearCart: () => set({ items: [] }),
 
-  const checkoutCart = async () => {
-    setIsLoading(true);
-    try {
-      // Здесь будет логика оформления заказа
-      toast.success('Заказ оформлен успешно');
-      clearCart();
-    } catch (error) {
-      toast.error('Ошибка при оформлении заказа');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        getTotalPrice: () => {
+          const state = get();
+          return state.items.reduce((total, item) => total + item.price, 0);
+        },
 
-  return {
-    items,
-    addToCart,
-    removeFromCart,
-    getTotalPrice,
-    isLoading,
-    checkoutCart
-  };
-};
+        setIsLoading: (loading) => set({ isLoading: loading }),
+
+        checkoutCart: async () => {
+          const state = get();
+          state.setIsLoading(true);
+          try {
+            // Здесь будет логика оформления заказа
+            toast.success('Заказ оформлен успешно');
+            state.clearCart();
+          } catch (error) {
+            toast.error('Ошибка при оформлении заказа');
+          } finally {
+            state.setIsLoading(false);
+          }
+        },
+      }),
+      {
+        name: 'cart-storage'
+      }
+    )
+  )
+);
