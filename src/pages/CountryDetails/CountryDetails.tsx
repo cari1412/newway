@@ -8,14 +8,21 @@ import { useInView } from 'react-intersection-observer';
 
 const ITEMS_PER_PAGE = 20;
 
+interface PageInfo {
+  currentPage: number;
+  hasMore: boolean;
+}
+
 export const CountryDetails: FC = () => {
   const { countryId } = useParams();
   const navigate = useNavigate();
   const [plans, setPlans] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [pageInfo, setPageInfo] = useState<PageInfo>({
+    currentPage: 1,
+    hasMore: true
+  });
 
   const { ref, inView } = useInView({
     threshold: 0.5,
@@ -43,7 +50,13 @@ export const CountryDetails: FC = () => {
         setPlans(prev => [...prev, ...countryPackages]);
       }
 
-      setHasMore(response.page < response.totalPages);
+      // Определяем, есть ли ещё страницы на основе количества полученных пакетов
+      const hasMore = countryPackages.length === ITEMS_PER_PAGE;
+      setPageInfo({
+        currentPage,
+        hasMore
+      });
+      
       setError(null);
     } catch (err) {
       console.error('Failed to load plans:', err);
@@ -56,24 +69,29 @@ export const CountryDetails: FC = () => {
   // Первоначальная загрузка
   useEffect(() => {
     setPlans([]);
-    setPage(1);
-    setHasMore(true);
+    setPageInfo({
+      currentPage: 1,
+      hasMore: true
+    });
     loadPlans(1, true);
   }, [countryId]);
 
   // Загрузка при скролле
   useEffect(() => {
-    if (inView && hasMore && !loading) {
-      const nextPage = page + 1;
-      setPage(nextPage);
+    if (inView && pageInfo.hasMore && !loading) {
+      const nextPage = pageInfo.currentPage + 1;
+      setPageInfo(prev => ({
+        ...prev,
+        currentPage: nextPage
+      }));
       loadPlans(nextPage);
     }
-  }, [inView, hasMore, loading]);
+  }, [inView, pageInfo.hasMore, loading]);
 
   if (loading && plans.length === 0) {
     return (
       <Page>
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+        <div className="flex justify-center p-4">
           <Spinner size="m" />
         </div>
       </Page>
@@ -121,7 +139,7 @@ export const CountryDetails: FC = () => {
 
           {/* Элемент для отслеживания прокрутки */}
           <div ref={ref} style={{ height: '20px' }}>
-            {loading && hasMore && (
+            {loading && pageInfo.hasMore && (
               <div className="flex justify-center p-4">
                 <Spinner size="s" />
               </div>

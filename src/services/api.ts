@@ -24,6 +24,13 @@ declare global {
   }
 }
 
+// Типы данных для стран
+export interface CountrySummary {
+  locationCode: string;
+  minPrice: number;
+  plansCount: number;
+}
+
 // Payment Types
 export interface PaymentRequestParams {
   transactionId: string;
@@ -139,6 +146,21 @@ apiClient.interceptors.response.use(
 
 // API Methods
 export const api = {
+  async getCountriesSummary(): Promise<CountrySummary[]> {
+    try {
+      const response = await apiClient.get<{ success: boolean; obj: CountrySummary[] }>('/api/v1/open/package/countries-summary');
+      
+      if (!response.data.success) {
+        throw new Error('Failed to fetch countries summary');
+      }
+      
+      return response.data.obj;
+    } catch (error) {
+      console.error('Failed to fetch countries summary:', error);
+      throw error;
+    }
+  },
+
   async createPayment(params: PaymentRequestParams): Promise<PaymentResponseData> {
     try {
       console.log('Creating payment with params:', params);
@@ -162,9 +184,9 @@ export const api = {
 
   async getPackages(params: { location?: string; page?: number; limit?: number; } = {}): Promise<{
     packageList: Package[];
-    total: number;
-    page: number;
-    totalPages: number;
+    total?: number;
+    page?: number;
+    totalPages?: number;
   }> {
     try {
       const response = await apiClient.post('/api/v1/open/package/list', {
